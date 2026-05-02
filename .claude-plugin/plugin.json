@@ -1,0 +1,22 @@
+{
+  "name": "governor",
+  "version": "0.1.0",
+  "description": "Governor: always-on compact professional output, telemetry, context slimming, tool-output filtering, prompt guidance, and drift guardrails for Claude Code Max users.",
+  "author": {
+    "name": "hs"
+  },
+  "homepage": "https://github.com/0xhimanshu/claude-code-governor",
+  "repository": "https://github.com/0xhimanshu/claude-code-governor",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "context",
+    "usage",
+    "tokens",
+    "compression",
+    "governor"
+  ],
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "hooks": "./hooks/hooks.json"
+}

@@ -1,0 +1,14 @@
+.DS_Store
+Archive.zip
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.tmp
+.env
+.env.*
+!.env.example
+benchmarks/latest-*.json
+dist/
+build/
+.pytest_cache/

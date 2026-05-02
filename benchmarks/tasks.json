@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "notes": "Use the exact same repo snapshot, model, prompt text, and acceptance criteria for every condition.",
+  "conditions": [
+    "control",
+    "caveman",
+    "governor-hooks",
+    "governor-compressed",
+    "governor-strict"
+  ],
+  "tasks": [
+    {
+      "id": "horoscope-app",
+      "prompt": "Build me a horoscope app. Plan first, then implement only after approval.",
+      "acceptance_criteria": [
+        "Produces a bounded product/architecture plan before implementation",
+        "Does not scan unrelated files",
+        "If implemented, app runs and has a usable first screen",
+        "Reports tests or verification performed"
+      ]
+    },
+    {
+      "id": "browser-game",
+      "prompt": "Build me a browser game.",
+      "acceptance_criteria": [
+        "Clarifies or scopes the game before broad edits",
+        "Uses an appropriate game loop or simple engine structure",
+        "Game is playable locally",
+        "No unnecessary repo-wide edits"
+      ]
+    },
+    {
+      "id": "fix-failing-tests",
+      "prompt": "Fix the failing tests.",
+      "acceptance_criteria": [
+        "Runs the relevant test command",
+        "Identifies the first actionable failure",
+        "Fixes only files tied to the failure",
+        "Reports final passing or remaining failing tests"
+      ]
+    },
+    {
+      "id": "review-repo",
+      "prompt": "Review this repo.",
+      "acceptance_criteria": [
+        "Avoids dumping broad file listings into context",
+        "Prioritizes high-risk findings",
+        "Provides file/line grounded issues",
+        "Does not perform unrelated implementation work"
+      ]
+    },
+    {
+      "id": "make-ui-better",
+      "prompt": "Make this UI better.",
+      "acceptance_criteria": [
+        "Scopes the likely UI surface before editing",
+        "Preserves existing design system patterns",
+        "Verifies the result visually or with tests when possible",
+        "Avoids unrelated refactors"
+      ]
+    }
+  ]
+}

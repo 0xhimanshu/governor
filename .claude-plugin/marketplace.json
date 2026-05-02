@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "governor",
+  "description": "Governor: always-on compact professional output, usage telemetry, memory compression, and tool-output filtering for Claude Code.",
+  "owner": {
+    "name": "0xhimanshu",
+    "url": "https://github.com/0xhimanshu"
+  },
+  "plugins": [
+    {
+      "name": "governor",
+      "description": "Governor for Claude Code Max: compact output, context slimming, telemetry, noisy-tool filtering, and drift guardrails.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
