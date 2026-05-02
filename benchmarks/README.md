@@ -1,8 +1,12 @@
 # Governor vs Caveman Performance Benchmark
 
 Use this when you want measured evidence instead of plugin marketing claims.
-The goal is to compare quota burn and context growth for the same tasks under
-the same conditions.
+The goal is to compare quota burn, context growth, and effective task quality
+for the same tasks under the same conditions.
+
+Governor should not be judged by token savings alone. Throwing context away is
+easy; preserving useful model behavior while removing avoidable waste is the
+hard part.
 
 ## Conditions
 
@@ -46,9 +50,16 @@ Required columns:
 - `end_5h_pct`
 - `assistant_output_tokens_est`
 - `failed_tool_calls`
+- `retry_loops`
 - `compactions`
 - `wall_minutes`
 - `task_success`
+- `quality_score_0_10`
+- `requirements_met`
+- `requirements_total`
+- `critical_errors`
+- `unplanned_files_changed`
+- `human_interventions`
 
 Governor-specific columns:
 
@@ -62,6 +73,63 @@ Optional columns:
 - `end_7d_pct`
 - `notes`
 
+## Quality Rubric
+
+Score each completed run after reviewing the final result, diff, and command
+history.
+
+| Field | Meaning |
+|---|---|
+| `task_success` | `success`, `partial`, or `failed` |
+| `quality_score_0_10` | Human/evaluator score where 10 means complete, correct, and efficient |
+| `requirements_met` / `requirements_total` | Count acceptance criteria actually satisfied |
+| `critical_errors` | Unsafe, misleading, destructive, or clearly wrong actions |
+| `unplanned_files_changed` | Files edited outside the task scope |
+| `human_interventions` | Times the human had to redirect, clarify, or repair the run |
+| `retry_loops` | Repeated failed attempts at the same issue |
+
+Suggested scoring:
+
+- `10`: fully succeeds, preserves requirements, avoids avoidable broad scans.
+- `8`: succeeds with minor omissions or small inefficiencies.
+- `6`: partially succeeds but misses one important requirement or needs repair.
+- `4`: weak partial result with multiple missed requirements or noisy retries.
+- `2`: mostly fails while appearing confident.
+- `0`: unsafe, destructive, or unusable result.
+
+Quality gate:
+
+- A condition is better only if context/usage drops while task success,
+  requirement coverage, and quality score stay equal or improve within normal
+  run variance.
+- If Governor saves tokens but lowers quality, count that as a regression.
+- For coding tasks, run a functional smoke check whenever possible. Syntax-only
+  checks are not enough when the change touches selectors, event handlers,
+  browser behavior, routing, data flow, or persistence.
+- Do not accept self-reported "all checks pass" claims without matching command
+  output, browser evidence, or an independent evaluator check.
+
+## Intent-Retention Checks
+
+Use multi-turn tasks to test whether a condition preserves intent after the
+session gets longer or later prompts push in a conflicting direction.
+
+Recommended sequence:
+
+1. Ask for an implementation contract with explicit non-negotiables.
+2. Approve a small implementation.
+3. Add a conflicting stakeholder request, such as turning an internal dashboard
+   into a marketing-style product page.
+4. Ask for a final contract check and corrective edit.
+
+Score intent retention separately from token savings:
+
+- Did the agent keep the original product/user intent?
+- Did it reject or narrow conflicting requests?
+- Did it preserve scoped files and required workflows?
+- Did the final check catch real drift instead of merely claiming success?
+- Did independent smoke checks confirm the implementation still works?
+
 ## How To Run
 
 For each task in `tasks.json`:
@@ -73,7 +141,8 @@ For each task in `tasks.json`:
 4. Paste the exact task prompt.
 5. Let the agent complete or stop when it clearly fails.
 6. Record peak/end context, five-hour usage delta, failures, compactions, wall
-   time, and whether acceptance criteria passed.
+   time, whether acceptance criteria passed, quality score, critical errors, and
+   human interventions.
 7. For Governor runs, run `/governor:status` and copy blocked-token totals.
 
 Then summarize:
@@ -91,9 +160,10 @@ Use these as primary metrics:
 - `assistant_output_tokens_est`: where Caveman should be strongest.
 - `tool_output_tokens_blocked_est`: Governor-specific tool-noise savings.
 - `failed_tool_calls`: retry-loop waste. Lower is better.
+- `retry_loops`: repeated attempts at the same failed fix. Lower is better.
 - `compactions`: fewer means longer useful sessions.
-- `task_success`: must stay equal or improve. Smaller answers are not a win if
-  task quality falls.
+- `task_success`, `quality_score_0_10`, and requirement coverage: must stay
+  equal or improve. Smaller answers are not a win if task quality falls.
 
 Report Governor honestly:
 

@@ -22,8 +22,12 @@ If no CSV is provided, explain the benchmark protocol from
 - Use fresh sessions, the same model, the same repo commit, and exact prompt
   text from `benchmarks/tasks.json`.
 - Record context %, five-hour usage delta, output tokens, tool tokens blocked,
-  failed tool calls, compactions, wall time, and task success.
+  failed tool calls, retry loops, compactions, wall time, task success, quality
+  score, requirement coverage, critical errors, and human interventions.
 - Summarize with `scripts/compare_benchmarks.py`.
 
 Keep the response practical. Do not claim Governor beats Caveman until the CSV
-contains measured runs.
+contains measured runs. Token savings are a win only when success rate,
+requirement coverage, quality score, and verification evidence are retained.
+For coding benchmarks, call out runtime/selector/event-handler bugs as quality
+regressions even if output tokens drop.

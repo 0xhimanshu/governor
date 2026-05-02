@@ -93,12 +93,15 @@ class PositionedSpan:
 
 def data_dir() -> Path:
     raw = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if raw:
-        path = Path(raw)
-    else:
-        path = Path.home() / ".claude" / "plugins" / PLUGIN_NAME
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    preferred = Path(raw) if raw else Path.home() / ".claude" / "plugins" / PLUGIN_NAME
+    fallback = Path(os.environ.get("TMPDIR", "/tmp")) / f"{PLUGIN_NAME}-plugin-data"
+    for path in (preferred, fallback):
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+        except OSError:
+            continue
+    return Path.cwd()
 
 
 def ledger_path() -> Path:
@@ -222,22 +225,55 @@ def set_governor_mode(mode: str, quiet: bool = False) -> int:
     return 0
 
 
+def caveman_active() -> bool:
+    if os.environ.get("GOVERNOR_IGNORE_CAVEMAN") == "1":
+        return False
+
+    marker = Path.home() / ".claude" / ".caveman-active"
+    try:
+        if marker.exists():
+            raw = marker.read_text(encoding="utf-8", errors="replace").strip().lower()
+            if raw and raw not in {"0", "false", "off", "disabled"}:
+                return True
+    except OSError:
+        pass
+
+    settings = Path.home() / ".claude" / "settings.json"
+    try:
+        data = json.loads(settings.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    enabled = data.get("enabledPlugins") or {}
+    return any("caveman" in str(name).lower() and bool(value) for name, value in enabled.items())
+
+
 def governor_response_context(mode: str | None = None) -> str:
     mode = mode or get_governor_mode()
     if mode == "off":
         return ""
+    quality_floor = (
+        "Quality floor: compactness applies to final wording, not to correctness. "
+        "For coding or review tasks, inspect the relevant code, preserve explicit constraints, "
+        "make the smallest correct change, run the most relevant available verification, and state if verification was not run. "
+        "Do not skip needed tests, examples, edge cases, or rationale merely to save tokens. "
+        "Never claim a check passed unless it actually ran."
+    )
     if mode == "normal":
         return (
             "GOVERNOR MODE ACTIVE — normal. Be professional and avoid filler, but do not force terse answers. "
-            "Still preserve tool-output hygiene, planning discipline, and exact safety warnings."
+            "Still preserve tool-output hygiene, planning discipline, and exact safety warnings. "
+            + quality_floor
         )
+    if caveman_active():
+        return ""
     return (
-        "GOVERNOR MODE ACTIVE — compact professional output. Applies every response. "
-        "Start with the answer/result. Skip pleasantries, restating the request, and process narration. "
-        "For direct technical explanations, target 90-160 words unless the user asks for depth. "
-        "Use 3-6 high-signal bullets or short paragraphs; compact tables for comparisons; cause -> fix -> verify for debugging. "
-        "Include code, commands, caveats, and rationale only when they change the next action or prevent a mistake. "
-        "No caveman, pirate, leet, emoji-compression, or novelty dialect."
+        "GOVERNOR COMPACT MODE. Preserve the user's requested format exactly; no extra sections. "
+        "Answer first; skip pleasantries, restating the task, and process narration. "
+        "Use the shortest complete final response that preserves requirements, warnings, code, commands, and requested edge cases. "
+        "Do not add caveats, examples, tests, or rationale unless requested or needed for correctness. "
+        "Use bullets/tables only when shorter. Debugging: bug -> fix -> verify. "
+        "No novelty dialect. "
+        + quality_floor
     )
 
 
@@ -245,11 +281,17 @@ def session_start_context() -> str:
     mode = get_governor_mode()
     if mode == "off":
         return "Governor mode off. Hooks still track telemetry and tool-output filtering when configured."
+    if mode == "compact" and caveman_active():
+        return (
+            "Governor compact response reinforcement paused because Caveman appears active. "
+            "Governor still runs telemetry, memory compression, tool-output filtering, prompt guidance, and drift guardrails."
+        )
     return (
         f"GOVERNOR MODE ACTIVE — {mode}\n\n"
         + governor_response_context(mode)
         + "\n\n"
         "Quota rules: keep context overhead tiny; label estimates; report exact Governor ledger numbers when available. "
+        "Quality rule: token savings are a regression if they reduce task success, requirement coverage, or verification quality. "
         "Use soft suggestions for vague, broad, or retry-prone prompts. "
         "Do not expose internal compression prepare/finalize steps to the user during /governor:compress unless manual fallback is required."
     )
@@ -782,6 +824,8 @@ def status() -> int:
     lifetime_compactions = sum(1 for record in lifetime_records if record.get("event") == "pre_compact")
 
     print("Claude Code Governor status")
+    print(f"- Mode: {get_governor_mode()}")
+    print(f"- Caveman detected: {'yes; compact response reinforcement paused' if caveman_active() else 'no'}")
     print(f"- Session window events: {len(records)}")
     print(f"- Session tool-output tokens blocked: ~{tool_blocked}")
     print(f"- Session soft prompt suggestions: {prompt_suggestions}")

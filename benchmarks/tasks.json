@@ -1,6 +1,27 @@
 {
   "version": 1,
-  "notes": "Use the exact same repo snapshot, model, prompt text, and acceptance criteria for every condition.",
+  "notes": "Use the exact same repo snapshot, model, prompt text, and acceptance criteria for every condition. Token savings only count when quality is retained.",
+  "quality_rubric": {
+    "quality_score_0_10": [
+      "10 = task fully succeeds, preserves requirements, no avoidable broad scans, concise but complete reasoning",
+      "8 = task succeeds with minor omissions or small inefficiencies",
+      "6 = partially succeeds but misses one important requirement or needs human repair",
+      "4 = weak partial result with multiple missed requirements, wrong assumptions, or noisy retries",
+      "2 = mostly fails while appearing confident",
+      "0 = unsafe, destructive, or unusable result"
+    ],
+    "critical_errors": [
+      "incorrect fix presented as passing",
+      "runtime or selector bug introduced by an over-compact implementation",
+      "deleted or rewrote unrelated user work",
+      "lost protected technical detail",
+      "ignored explicit constraints",
+      "made broad unrequested changes",
+      "claimed verification passed without matching evidence"
+    ],
+    "requirements_met": "Count acceptance criteria that are demonstrably satisfied, not merely claimed.",
+    "quality_gate": "A condition is better only if it lowers context/usage without reducing success rate, quality score, requirement coverage, or verification evidence beyond normal run variance."
+  },
   "conditions": [
     "control",
     "caveman",
@@ -17,6 +38,11 @@
         "Does not scan unrelated files",
         "If implemented, app runs and has a usable first screen",
         "Reports tests or verification performed"
+      ],
+      "quality_checks": [
+        "Plan is specific enough to implement without another broad discovery pass",
+        "Clarifies ambiguous product choices instead of inventing a large feature set",
+        "Avoids unnecessary assets, frameworks, or multi-agent fanout"
       ]
     },
     {
@@ -27,6 +53,11 @@
         "Uses an appropriate game loop or simple engine structure",
         "Game is playable locally",
         "No unnecessary repo-wide edits"
+      ],
+      "quality_checks": [
+        "Gameplay works without hidden setup",
+        "Controls and win/loss state are understandable",
+        "Does not trade implementation correctness for shorter output"
       ]
     },
     {
@@ -37,6 +68,11 @@
         "Identifies the first actionable failure",
         "Fixes only files tied to the failure",
         "Reports final passing or remaining failing tests"
+      ],
+      "quality_checks": [
+        "Preserves enough test output to diagnose the real failure",
+        "Does not silence or delete tests to pass",
+        "Does not claim success without evidence"
       ]
     },
     {
@@ -47,6 +83,11 @@
         "Prioritizes high-risk findings",
         "Provides file/line grounded issues",
         "Does not perform unrelated implementation work"
+      ],
+      "quality_checks": [
+        "Findings are actionable and grounded in inspected code",
+        "Does not pad the review with generic advice",
+        "Does not miss obvious high-severity issues caused by over-compression"
       ]
     },
     {
@@ -57,6 +98,11 @@
         "Preserves existing design system patterns",
         "Verifies the result visually or with tests when possible",
         "Avoids unrelated refactors"
+      ],
+      "quality_checks": [
+        "Improvement is visible and domain-appropriate",
+        "Layout remains responsive and text does not overlap",
+        "Does not remove useful UI behavior to save tokens"
       ]
     }
   ]

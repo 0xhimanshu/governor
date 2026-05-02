@@ -29,8 +29,15 @@ NUMERIC_FIELDS = {
     "memory_original_tokens",
     "memory_compressed_tokens",
     "failed_tool_calls",
+    "retry_loops",
     "compactions",
     "wall_minutes",
+    "quality_score_0_10",
+    "requirements_met",
+    "requirements_total",
+    "critical_errors",
+    "unplanned_files_changed",
+    "human_interventions",
 }
 
 SUCCESS_SCORE = {
@@ -88,6 +95,7 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
             parsed["five_hour_delta_pct"] = delta(parsed.get("end_5h_pct"), parsed.get("start_5h_pct"))
             parsed["seven_day_delta_pct"] = delta(parsed.get("end_7d_pct"), parsed.get("start_7d_pct"))
             parsed["memory_saved_pct"] = memory_saved(parsed.get("memory_original_tokens"), parsed.get("memory_compressed_tokens"))
+            parsed["requirements_coverage"] = coverage(parsed.get("requirements_met"), parsed.get("requirements_total"))
             rows.append(parsed)
         return rows
 
@@ -102,6 +110,12 @@ def memory_saved(original: float | None, compressed: float | None) -> float | No
     if original is None or compressed is None or original <= 0:
         return None
     return 100 * (original - compressed) / original
+
+
+def coverage(met: float | None, total: float | None) -> float | None:
+    if met is None or total is None or total <= 0:
+        return None
+    return met / total
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | None]]:
@@ -123,8 +137,14 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | None]]:
             "tool_output_tokens_blocked_est": average([item.get("tool_output_tokens_blocked_est") for item in items]),
             "memory_saved_pct": average([item.get("memory_saved_pct") for item in items]),
             "failed_tool_calls": average([item.get("failed_tool_calls") for item in items]),
+            "retry_loops": average([item.get("retry_loops") for item in items]),
             "compactions": average([item.get("compactions") for item in items]),
             "wall_minutes": average([item.get("wall_minutes") for item in items]),
+            "quality_score_0_10": average([item.get("quality_score_0_10") for item in items]),
+            "requirements_coverage": average([item.get("requirements_coverage") for item in items]),
+            "critical_errors": average([item.get("critical_errors") for item in items]),
+            "unplanned_files_changed": average([item.get("unplanned_files_changed") for item in items]),
+            "human_interventions": average([item.get("human_interventions") for item in items]),
         }
     return summary
 
@@ -132,8 +152,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | None]]:
 def print_overall(summary: dict[str, dict[str, float | None]]) -> None:
     print("# Benchmark Summary")
     print("")
-    print("| Condition | Runs | Success | Peak ctx | Ctx growth | 5h delta | Output toks | Tool toks blocked | Memory saved | Failed tools | Compactions | Minutes |")
-    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    print("| Condition | Runs | Success | Quality | Req coverage | Peak ctx | Ctx growth | 5h delta | Output toks | Tool toks blocked | Memory saved | Failed tools | Retry loops | Critical errors | Human fixes | Compactions | Minutes |")
+    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for condition in sorted(summary):
         item = summary[condition]
         print(
@@ -143,6 +163,8 @@ def print_overall(summary: dict[str, dict[str, float | None]]) -> None:
                     condition,
                     fmt(item.get("runs"), precision=0),
                     fmt(percent(item.get("success_rate")), "%"),
+                    fmt(item.get("quality_score_0_10")),
+                    fmt(percent(item.get("requirements_coverage")), "%"),
                     fmt(item.get("peak_context_pct"), "%"),
                     fmt(item.get("context_growth_pct"), "%"),
                     fmt(item.get("five_hour_delta_pct"), "%"),
@@ -150,6 +172,9 @@ def print_overall(summary: dict[str, dict[str, float | None]]) -> None:
                     fmt(item.get("tool_output_tokens_blocked_est"), precision=0),
                     fmt(item.get("memory_saved_pct"), "%"),
                     fmt(item.get("failed_tool_calls")),
+                    fmt(item.get("retry_loops")),
+                    fmt(item.get("critical_errors")),
+                    fmt(item.get("human_interventions")),
                     fmt(item.get("compactions")),
                     fmt(item.get("wall_minutes")),
                 ]
@@ -181,6 +206,12 @@ def print_pairwise(summary: dict[str, dict[str, float | None]], left: str, right
         ("compactions", True, ""),
         ("wall_minutes", True, ""),
         ("success_rate", False, "%"),
+        ("quality_score_0_10", False, ""),
+        ("requirements_coverage", False, "%"),
+        ("critical_errors", True, ""),
+        ("retry_loops", True, ""),
+        ("unplanned_files_changed", True, ""),
+        ("human_interventions", True, ""),
     ]
     for metric, lower_is_better, suffix in metrics:
         left_value = summary[left].get(metric)
@@ -189,7 +220,7 @@ def print_pairwise(summary: dict[str, dict[str, float | None]], left: str, right
             diff_text = "-"
         else:
             diff = right_value - left_value
-            if metric == "success_rate":
+            if metric in {"success_rate", "requirements_coverage"}:
                 diff *= 100
             diff_text = fmt(diff, suffix)
         print(f"| {metric} | {'yes' if lower_is_better else 'no'} | {diff_text} |")

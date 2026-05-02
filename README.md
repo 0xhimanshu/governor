@@ -49,10 +49,45 @@ session killers are often:
 Governor attacks those system problems while keeping the interaction
 professional and readable.
 
-## Benchmarks
+## Early Results
 
-Small local smoke benchmarks, not universal claims. Same machine, same prompt
-set, Claude CLI non-interactive runs.
+These are directional pilot results, not universal claims.
+
+Same machine, fresh Claude CLI Sonnet sessions, same multi-turn task, same
+starting repo snapshot. This pilot measured an implementation contract, a real
+implementation turn, a later conflicting stakeholder request, and a final drift
+check.
+
+| Condition | Output Tokens | Cost | Turns | Intent Preserved | Obvious Regression Found |
+|---|---:|---:|---:|---|---|
+| Control | 10,997 | $0.5169 | 21 | Yes | No |
+| Governor | 10,113 | $0.4933 | 22 | Yes | No |
+| Delta | -8.0% | -4.6% | +4.8% | Tie | Tie |
+
+What this means:
+
+- Governor reduced output tokens and total cost in this pilot.
+- Governor preserved the original implementation contract and rejected later
+  scope drift.
+- This was not a speed win; Governor took one extra turn.
+- This is early evidence, not a broad claim across all Claude Code tasks.
+
+Notes:
+
+- `n=1` pilot run
+- Claude CLI Sonnet
+- Multi-turn static dashboard task
+- Browser-level smoke testing and larger multi-task comparisons are still in
+  progress
+
+Governor should not be judged by token savings alone. Throwing context away is
+easy. The harder problem is reducing avoidable quota burn while preserving
+correctness, intent, and useful model behavior over longer sessions.
+
+## Micro Benchmarks
+
+Small local smoke benchmarks. Useful for understanding where savings come from,
+but not substitutes for real task runs.
 
 ### Output Tokens
 
@@ -82,9 +117,9 @@ Synthetic noisy `pytest -vv` output with preserved failure lines.
 |---:|---:|---:|
 | 54314 estimated tokens | 1726 estimated tokens | 96.8% |
 
-Interpretation: Caveman is excellent at style compression. Governor aims for
-broader quota control: compact output, recurring-context compression, noisy-tool
-filtering, telemetry, and retry reduction.
+Interpretation: Caveman is excellent at pure style compression. Governor aims
+for broader quota control: compact output, recurring-context compression,
+noisy-tool filtering, telemetry, and retry reduction.
 
 ## Features
 
