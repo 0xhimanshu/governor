@@ -1,0 +1,67 @@
+{
+  "id": "memory-architecture-constraints",
+  "category": "memory",
+  "automation_level": "reference",
+  "description": "Project notes describing architecture decisions and limits that should survive compression.",
+  "input": {
+    "kind": "text",
+    "content": "# Architecture Notes\n\nDecision: keep the export flow synchronous in the API until the queue worker is stable.\n\nConstraints:\n- `POST /api/admin/export` must stay inside the monolith for now.\n- The queue worker in `workers/exporter.ts` is behind a feature flag named `export-worker-v2`.\n- If you touch export auth, verify both `tests/export/api.test.ts` and `tests/export/worker.test.ts`.\n- Do not add Redis as a new dependency for this milestone.\n- The internal ops dashboard depends on immediate export status, so avoid background-only UX.\n"
+  },
+  "required_items": [
+    {
+      "id": "api_endpoint",
+      "aliases": [
+        "POST /api/admin/export"
+      ]
+    },
+    {
+      "id": "worker_file",
+      "aliases": [
+        "workers/exporter.ts"
+      ]
+    },
+    {
+      "id": "feature_flag",
+      "aliases": [
+        "export-worker-v2"
+      ]
+    },
+    {
+      "id": "exact_tests",
+      "aliases": [
+        "tests/export/api.test.ts",
+        "tests/export/worker.test.ts"
+      ]
+    },
+    {
+      "id": "redis_constraint",
+      "aliases": [
+        "Do not add Redis",
+        "No Redis"
+      ]
+    }
+  ],
+  "decision_prompt": "What architecture constraints should guide any export refactor?",
+  "correct_action_signals": [
+    "monolith",
+    "export-worker-v2",
+    "tests/export/api.test.ts",
+    "redis"
+  ],
+  "wrong_action_signals": [
+    "move all exports to background now",
+    "add redis immediately"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/memory-architecture-constraints.json",
+      "content": "export stays in api for now. worker behind flag. test export api and worker. no redis. dashboard needs immediate status."
+    },
+    "governor": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/governor/memory-architecture-constraints.json",
+      "content": "# Architecture Notes\n- Keep `POST /api/admin/export` inside the monolith until the worker path is proven.\n- `workers/exporter.ts` remains behind the `export-worker-v2` feature flag.\n- If export auth changes, verify `tests/export/api.test.ts` and `tests/export/worker.test.ts`.\n- Do not add Redis for this milestone.\n- Preserve immediate status in the internal ops dashboard; avoid a background-only UX.\n"
+    }
+  }
+}

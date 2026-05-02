@@ -4,19 +4,91 @@ Use this when you want measured evidence instead of plugin marketing claims.
 The goal is to compare quota burn, context growth, and effective task quality
 for the same tasks under the same conditions.
 
+For the current publishable Sonnet snapshot, start with:
+
+- `benchmarks/sonnet-v2-report.md`
+
 Governor should not be judged by token savings alone. Throwing context away is
 easy; preserving useful model behavior while removing avoidable waste is the
 hard part.
+
+## V2 Principle
+
+Governor wins only if it removes more junk than Caveman while losing less valid
+context.
+
+Primary metrics:
+
+- `VCLR`: `lost_required_items / total_required_items`
+- `decision_preserved`: did the model still choose the correct next action?
+- `wrong_decision`: did compaction cause a wrong diagnosis, scope drift, or
+  retry loop?
+- `token_savings`: useful, but secondary
+
+## Fixture Benchmarks
+
+Before you run full session comparisons, run the V2 fixture benchmark:
+
+```bash
+python3 scripts/run_benchmark.py
+```
+
+The fixture suite lives in `benchmarks/fixtures/`.
+
+Starter categories:
+
+- noisy test/build logs
+- structured/MCP payloads
+- memory/rules files
+- multi-turn intent retention
+- safety no-compress cases
+
+Each fixture defines:
+
+- raw input or a live tool-event recipe
+- required items that must survive compaction
+- a decision prompt
+- signals for correct vs wrong next action
+- one or more candidate conditions (`caveman`, `governor`)
+
+Deterministic VCLR scoring works without model access.
+
+Optional Claude CLI decision evaluation:
+
+```bash
+python3 scripts/run_benchmark.py --decision-backend claude --model sonnet
+```
+
+If local Claude CLI auth is unavailable, the runner records that rather than
+crashing.
+
+Refresh Caveman replay files when Claude CLI auth is available:
+
+```bash
+python3 scripts/capture_fixture_conditions.py \
+  --condition caveman \
+  --model sonnet \
+  --write-summary benchmarks/captured/caveman/latest-summary.json
+```
+
+Refresh reference-style Governor replay files too:
+
+```bash
+python3 scripts/capture_fixture_conditions.py \
+  --condition governor \
+  --model sonnet \
+  --write-summary benchmarks/captured/governor/latest-summary.json
+```
 
 ## Conditions
 
 Run each task under these conditions:
 
 1. `control`: no Caveman, no Governor.
-2. `caveman`: Caveman enabled exactly as a normal user would use it.
-3. `governor-hooks`: Governor enabled, no memory compression yet.
-4. `governor-compressed`: Governor enabled after `/governor:compress CLAUDE.md`.
-5. `governor-strict`: optional; Governor plus `/governor:strict` for broad tasks.
+2. `caveman`: captured Caveman comparator output from the same raw fixture input
+   when available; otherwise inline fallback text for framework work only.
+3. `governor`: live local hook output when the fixture exercises tool filtering,
+   or captured replay output for reference-style benchmark cases when available.
 
 This separation matters. Caveman should mostly win on assistant output brevity.
 Governor should win when context hygiene, tool-output filtering, planning, and
@@ -57,6 +129,11 @@ Required columns:
 - `quality_score_0_10`
 - `requirements_met`
 - `requirements_total`
+- `required_items_lost`
+- `required_items_total`
+- `vclr`
+- `decision_preserved`
+- `wrong_decision`
 - `critical_errors`
 - `unplanned_files_changed`
 - `human_interventions`
@@ -72,6 +149,25 @@ Optional columns:
 - `start_7d_pct`
 - `end_7d_pct`
 - `notes`
+
+## VCLR Rubric
+
+Use `required_items_lost`, `required_items_total`, and `vclr` to score valid
+context loss directly.
+
+Examples of required items:
+
+- failing test name
+- endpoint or path
+- exact warning or irreversible rule
+- feature flag
+- test command
+- contract constraint
+
+Lower `vclr` is better.
+
+If Governor saves tokens but loses more required items than Caveman, that is a
+loss even if the output is smaller.
 
 ## Quality Rubric
 
@@ -155,6 +251,9 @@ python3 scripts/compare_benchmarks.py benchmarks/run-sheet.csv
 
 Use these as primary metrics:
 
+- `vclr`: valid context loss. Lower is better.
+- `decision_preserved`: must stay equal or improve.
+- `wrong_decision`: lower is better.
 - `five_hour_delta_pct`: real Max-plan burn. Lower is better.
 - `peak_context_pct`: risk of compaction and 1M-context bloat. Lower is better.
 - `assistant_output_tokens_est`: where Caveman should be strongest.
@@ -164,6 +263,11 @@ Use these as primary metrics:
 - `compactions`: fewer means longer useful sessions.
 - `task_success`, `quality_score_0_10`, and requirement coverage: must stay
   equal or improve. Smaller answers are not a win if task quality falls.
+
+Recommended reading:
+
+- `benchmarks/fixtures/README.md`
+- `benchmarks/fixtures/schema.json`
 
 Report Governor honestly:
 

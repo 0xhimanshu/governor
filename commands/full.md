@@ -17,4 +17,4 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" full
 - Do not summarize away critical lines.
 - If output is enormous, ask before rerunning with full logs.
 
-This sets a one-command hook override. It does not disable hooks globally.
+This sets a one-tool-call hook override. It does not disable hooks globally.

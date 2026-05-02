@@ -38,6 +38,11 @@ NUMERIC_FIELDS = {
     "critical_errors",
     "unplanned_files_changed",
     "human_interventions",
+    "required_items_lost",
+    "required_items_total",
+    "vclr",
+    "decision_preserved",
+    "wrong_decision",
 }
 
 SUCCESS_SCORE = {
@@ -88,7 +93,7 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
                 continue
             parsed: dict[str, Any] = dict(row)
             for field in NUMERIC_FIELDS:
-                parsed[field] = parse_number(row.get(field))
+                parsed[field] = parse_metric(row.get(field))
             success_raw = (row.get("task_success") or "").strip().lower()
             parsed["success_score"] = SUCCESS_SCORE.get(success_raw)
             parsed["context_growth_pct"] = delta(parsed.get("end_context_pct"), parsed.get("start_context_pct"))
@@ -96,8 +101,24 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
             parsed["seven_day_delta_pct"] = delta(parsed.get("end_7d_pct"), parsed.get("start_7d_pct"))
             parsed["memory_saved_pct"] = memory_saved(parsed.get("memory_original_tokens"), parsed.get("memory_compressed_tokens"))
             parsed["requirements_coverage"] = coverage(parsed.get("requirements_met"), parsed.get("requirements_total"))
+            if parsed.get("vclr") is None:
+                parsed["vclr"] = coverage(parsed.get("required_items_lost"), parsed.get("required_items_total"))
+            parsed["decision_preservation_rate"] = parsed.get("decision_preserved")
+            parsed["wrong_decision_rate"] = parsed.get("wrong_decision")
             rows.append(parsed)
         return rows
+
+
+def parse_metric(value: str | None) -> float | None:
+    number = parse_number(value)
+    if number is not None:
+        return number
+    if value is None:
+        return None
+    lowered = value.strip().lower()
+    if lowered in SUCCESS_SCORE:
+        return SUCCESS_SCORE[lowered]
+    return None
 
 
 def delta(end: float | None, start: float | None) -> float | None:
@@ -142,6 +163,9 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | None]]:
             "wall_minutes": average([item.get("wall_minutes") for item in items]),
             "quality_score_0_10": average([item.get("quality_score_0_10") for item in items]),
             "requirements_coverage": average([item.get("requirements_coverage") for item in items]),
+            "vclr": average([item.get("vclr") for item in items]),
+            "decision_preservation_rate": average([item.get("decision_preservation_rate") for item in items]),
+            "wrong_decision_rate": average([item.get("wrong_decision_rate") for item in items]),
             "critical_errors": average([item.get("critical_errors") for item in items]),
             "unplanned_files_changed": average([item.get("unplanned_files_changed") for item in items]),
             "human_interventions": average([item.get("human_interventions") for item in items]),
@@ -152,8 +176,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | None]]:
 def print_overall(summary: dict[str, dict[str, float | None]]) -> None:
     print("# Benchmark Summary")
     print("")
-    print("| Condition | Runs | Success | Quality | Req coverage | Peak ctx | Ctx growth | 5h delta | Output toks | Tool toks blocked | Memory saved | Failed tools | Retry loops | Critical errors | Human fixes | Compactions | Minutes |")
-    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    print("| Condition | Runs | Success | Quality | Req coverage | VCLR | Decision preserved | Wrong decision | Peak ctx | Ctx growth | 5h delta | Output toks | Tool toks blocked | Memory saved | Failed tools | Retry loops | Critical errors | Human fixes | Compactions | Minutes |")
+    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for condition in sorted(summary):
         item = summary[condition]
         print(
@@ -165,6 +189,9 @@ def print_overall(summary: dict[str, dict[str, float | None]]) -> None:
                     fmt(percent(item.get("success_rate")), "%"),
                     fmt(item.get("quality_score_0_10")),
                     fmt(percent(item.get("requirements_coverage")), "%"),
+                    fmt(item.get("vclr")),
+                    fmt(percent(item.get("decision_preservation_rate")), "%"),
+                    fmt(percent(item.get("wrong_decision_rate")), "%"),
                     fmt(item.get("peak_context_pct"), "%"),
                     fmt(item.get("context_growth_pct"), "%"),
                     fmt(item.get("five_hour_delta_pct"), "%"),
@@ -205,6 +232,9 @@ def print_pairwise(summary: dict[str, dict[str, float | None]], left: str, right
         ("failed_tool_calls", True, ""),
         ("compactions", True, ""),
         ("wall_minutes", True, ""),
+        ("vclr", True, ""),
+        ("decision_preservation_rate", False, "%"),
+        ("wrong_decision_rate", True, "%"),
         ("success_rate", False, "%"),
         ("quality_score_0_10", False, ""),
         ("requirements_coverage", False, "%"),
@@ -220,7 +250,7 @@ def print_pairwise(summary: dict[str, dict[str, float | None]], left: str, right
             diff_text = "-"
         else:
             diff = right_value - left_value
-            if metric in {"success_rate", "requirements_coverage"}:
+            if metric in {"success_rate", "requirements_coverage", "decision_preservation_rate", "wrong_decision_rate"}:
                 diff *= 100
             diff_text = fmt(diff, suffix)
         print(f"| {metric} | {'yes' if lower_is_better else 'no'} | {diff_text} |")
@@ -244,10 +274,14 @@ def main() -> int:
 
     summary = summarize(rows)
     print_overall(summary)
-    print_pairwise(summary, "caveman", "governor-compressed")
-    print_pairwise(summary, "control", "governor-compressed")
+    if "control" in summary:
+        for condition in sorted(summary):
+            if condition != "control":
+                print_pairwise(summary, "control", condition)
+    else:
+        print_pairwise(summary, "caveman", "governor-compressed")
     print("")
-    print("Interpretation: lower context, five-hour delta, retries, compactions, and wall time are good only if task success stays equal or improves.")
+    print("Interpretation: lower VCLR and wrong-decision rate matter more than raw token savings. Smaller output is only a win if decision quality stays equal or improves.")
     return 0
 
 

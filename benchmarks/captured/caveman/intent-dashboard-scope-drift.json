@@ -1,0 +1,9 @@
+{
+  "fixture_id": "intent-dashboard-scope-drift",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:29:59.703407+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "aedcb7a5e4911496",
+  "text": "**CONTRACT (locked)**\n- Revenue-ops internal dashboard — support/finance\n- Dense tables + filters required\n- Incident queue + billing dispute workflow required\n- First screen ≠ hero/landing page — hard rejection\n\n**SCOPE**\nFiles: `src/pages/dashboard.tsx`, `src/components/disputes-table.tsx`, `src/components/incident-queue.tsx`\n\n**STAKEHOLDER REQUEST — REJECTED**\n\"Hero + glossy branding\" request contradicts non-negotiable. Polish = tighter table UX, better typography, cleaner filters. Not hero layout.\n\n**NEXT DECISION**\nImplement dashboard with operational tables. Apply visual polish within data-dense paradigm only."
+}

@@ -31,6 +31,9 @@ TOOL_FILTER_THRESHOLD = 16_000
 SUMMARY_HEAD_LINES = 30
 SUMMARY_TAIL_LINES = 40
 CONTEXT_TARGET_LINES = 200
+MAX_STRUCTURED_LINES = 80
+MAX_STRUCTURED_ITEMS = 8
+MAX_STRUCTURED_STRING = 240
 COMPRESSION_LEVELS = {"light", "medium", "aggressive"}
 GOVERNOR_MODES = {"compact", "normal", "off"}
 
@@ -75,6 +78,17 @@ COMMAND_RE = re.compile(
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---", re.DOTALL)
 FRONTMATTER_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+):", re.MULTILINE)
 WARNING_RE = re.compile(r"^.*\b(?:warning|danger|critical|destructive|irreversible|do not)\b.*$", re.I | re.M)
+SIGNAL_KEY_RE = re.compile(
+    r"(error|warning|fail|exception|trace|stack|message|reason|status|code|"
+    r"path|file|line|column|test|summary|detail|selected|request|finding|"
+    r"endpoint|url|severity|title|evidence|auth|authorization|location)",
+    re.IGNORECASE,
+)
+BULK_KEY_RE = re.compile(r"(stdout|stderr|output|content|body|text|items|results|entries|logs?)", re.IGNORECASE)
+NEVER_REWRITE_TOOL_RE = re.compile(
+    r"^(Read|Write|Edit|MultiEdit|NotebookEdit|TodoWrite|TaskOutput|AskUserQuestion|ExitPlanMode)$"
+)
+TOOL_FILTER_ALLOW_RE = re.compile(r"^(Bash|Grep|Glob|LS|Task|WebFetch|WebSearch|mcp__.*)$")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -89,6 +103,29 @@ class PositionedSpan:
     value: str
     start: int
     end: int
+
+
+@dataclasses.dataclass(frozen=True)
+class ToolSnapshot:
+    tool_name: str
+    tool_label: str
+    command: str
+    exit_code: Any
+    stdout: str
+    stderr: str
+    raw_text: str
+    raw_chars: int
+    raw_tokens_estimate: int
+    payload_kind: str
+    confidence: str
+    structured_lines: tuple[str, ...]
+    duration_ms: int | None
+
+
+@dataclasses.dataclass(frozen=True)
+class CompressionResult:
+    rc: int
+    payload: dict[str, Any]
 
 
 def data_dir() -> Path:
@@ -302,7 +339,7 @@ def set_full_output(count: int = 1) -> int:
     overrides = load_overrides()
     overrides["full_output_remaining"] = count
     save_overrides(overrides)
-    print(f"Governor full-output override enabled for next {count} Bash command(s).")
+    print(f"Governor full-output override enabled for next {count} tool call(s).")
     return 0
 
 
@@ -398,18 +435,19 @@ def mark_protected(source: Path, dest: Path | None = None, quiet: bool = False) 
     return 0
 
 
-def strip_protect(source: Path, dest: Path | None = None) -> int:
+def strip_protect(source: Path, dest: Path | None = None, quiet: bool = False) -> int:
     text = source.read_text(encoding="utf-8", errors="replace")
     stripped = re.sub(r'<protect\b[^>]*>(.*?)</protect>', lambda match: match.group(1), text, flags=re.DOTALL)
     if dest is None:
         dest = source.with_suffix(source.suffix + ".stripped")
     dest.write_text(stripped, encoding="utf-8")
-    print(f"Removed protect markers: {text.count('<protect ')}")
-    print(f"Wrote: {dest}")
+    if not quiet:
+        print(f"Removed protect markers: {text.count('<protect ')}")
+        print(f"Wrote: {dest}")
     return 0
 
 
-def recover_protected(original: Path, candidate: Path, output: Path | None = None) -> int:
+def recover_protected(original: Path, candidate: Path, output: Path | None = None, quiet: bool = False) -> int:
     original_text = original.read_text(encoding="utf-8", errors="replace")
     candidate_text = candidate.read_text(encoding="utf-8", errors="replace")
     original_spans = protected_spans(original_text)
@@ -420,14 +458,16 @@ def recover_protected(original: Path, candidate: Path, output: Path | None = Non
     if not original_spans:
         if output != candidate:
             shutil.copyfile(candidate, output)
-        print("No protected spans found in original.")
+        if not quiet:
+            print("No protected spans found in original.")
         return 0
     if len(candidate_spans) < len(original_spans):
-        print(
-            "Automatic recovery refused: compressed file has fewer protected-span positions "
-            f"({len(candidate_spans)}) than original ({len(original_spans)})."
-        )
-        print("Restore the backup or rerun compression with lighter changes.")
+        if not quiet:
+            print(
+                "Automatic recovery refused: compressed file has fewer protected-span positions "
+                f"({len(candidate_spans)}) than original ({len(original_spans)})."
+            )
+            print("Restore the backup or rerun compression with lighter changes.")
         return 2
 
     parts: list[str] = []
@@ -443,9 +483,10 @@ def recover_protected(original: Path, candidate: Path, output: Path | None = Non
     recovered = "".join(parts)
     output.write_text(recovered, encoding="utf-8")
 
-    print(f"Recovered protected spans: {replacements}")
-    print(f"Wrote: {output}")
-    return validate_file(original, output)
+    if not quiet:
+        print(f"Recovered protected spans: {replacements}")
+        print(f"Wrote: {output}")
+    return validate_file(original, output, quiet=quiet)
 
 
 def compression_prompt(level: str) -> str:
@@ -500,6 +541,29 @@ def compression_min_savings(level: str, original_tokens: int) -> float:
     if level == "aggressive":
         return 35.0
     return 25.0
+
+
+def stronger_compression_level(level: str) -> str | None:
+    if level == "light":
+        return "medium"
+    if level == "medium":
+        return "aggressive"
+    return None
+
+
+def compress_auto_command(target: Path, level: str) -> str:
+    return " ".join(
+        shlex.quote(part)
+        for part in (
+            "python3",
+            str(Path(__file__).resolve()),
+            "compress",
+            str(target),
+            "--level",
+            level,
+            "--auto",
+        )
+    )
 
 
 def create_compression_manifest(target: Path, level: str = "medium", quiet: bool = False) -> tuple[int, dict[str, Any] | None]:
@@ -580,9 +644,10 @@ def compress_auto(target: Path, level: str = "medium") -> int:
 
     prompt = Path(manifest["prompt"]).read_text(encoding="utf-8", errors="replace")
     marked_content = Path(manifest["draft"]).read_text(encoding="utf-8", errors="replace")
+    next_level = stronger_compression_level(level)
     payload = {
         "mode": "governor_compress_auto",
-        "instruction": "Rewrite marked_content using prompt. Save only rewritten file content to draft_path, then run finalize_command. Do not show internal paths to the user unless manual fallback or failure occurs.",
+        "instruction": "Rewrite marked_content using prompt. Save only rewritten file content to draft_path, then run finalize_command_json. If finalization returns status=quality_guard_failed and next_level is present, rerun retry_auto_command once. Do not show internal paths to the user unless manual fallback or failure occurs.",
         "target": manifest["target"],
         "level": manifest["level"],
         "backup_path": manifest["backup"],
@@ -591,13 +656,39 @@ def compress_auto(target: Path, level: str = "medium") -> int:
         "prompt": prompt,
         "marked_content": marked_content,
         "finalize_command": finalize_command(Path(manifest["target"]), Path(manifest["draft"])),
+        "finalize_command_json": finalize_command(Path(manifest["target"]), Path(manifest["draft"])) + " --json",
+        "next_level": next_level,
+        "retry_auto_command": compress_auto_command(Path(manifest["target"]), next_level) if next_level else None,
+        "quality_guard_min_savings_percent": compression_min_savings(level, int(manifest["original_tokens_estimate"])),
         "original_tokens_estimate": manifest["original_tokens_estimate"],
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 
-def compress_finalize(target: Path, draft: Path | None = None) -> int:
+def print_compression_result(payload: dict[str, Any], json_output: bool = False) -> None:
+    if json_output:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    status = payload.get("status")
+    if status == "success":
+        print("Governor compression finalized.")
+    elif status == "quality_guard_failed":
+        print("Governor compression rejected by quality guard.")
+    else:
+        print("Governor compression failed; original backup restored.")
+    print(f"- Target: {payload.get('target')}")
+    print(f"- Compressed estimate: {token_estimate_label(int(payload.get('compressed_tokens_estimate') or 0))}")
+    print(f"- Memory saved: {float(payload.get('memory_saved_percent') or 0):.1f}%")
+    print(f"- Recovery used: {'yes' if payload.get('recovery_used') else 'no'}")
+    print(f"- Backup restored: {'yes' if payload.get('backup_restored') else 'no'}")
+    print(f"- Quality guard: {'failed' if payload.get('quality_guard_failed') else 'passed'}")
+    if payload.get("recommended_retry_command"):
+        print(f"- Recommended retry: {payload['recommended_retry_command']}")
+
+
+def compress_finalize(target: Path, draft: Path | None = None, json_output: bool = False) -> int:
     workspace = compression_workspace(target)
     manifest_path = workspace / "latest.json"
     if not manifest_path.exists():
@@ -611,40 +702,63 @@ def compress_finalize(target: Path, draft: Path | None = None) -> int:
         print(f"Compression draft not found: {draft}")
         return 1
 
-    strip_protect(draft, target)
-    rc = validate_file(backup, target)
+    strip_protect(draft, target, quiet=json_output)
+    rc = validate_file(backup, target, quiet=json_output)
     recovered = False
     restored = False
     quality_guard_failed = False
     if rc != 0:
-        print("Validation failed; attempting automatic protected-span recovery.")
-        rc = recover_protected(backup, target, target)
+        if not json_output:
+            print("Validation failed; attempting automatic protected-span recovery.")
+        rc = recover_protected(backup, target, target, quiet=json_output)
         recovered = rc == 0
     if rc != 0:
         shutil.copyfile(backup, target)
         restored = True
-        print("Recovery failed. Restored original backup to target.")
+        if not json_output:
+            print("Recovery failed. Restored original backup to target.")
 
     after_tokens = estimate_tokens(target.read_text(encoding="utf-8", errors="replace"))
     before_tokens = int(manifest.get("original_tokens_estimate") or 0)
     saved = 100 * (before_tokens - after_tokens) / before_tokens if before_tokens else 0
-    min_savings = compression_min_savings(str(manifest.get("level") or "medium"), before_tokens)
+    level = str(manifest.get("level") or "medium")
+    min_savings = compression_min_savings(level, before_tokens)
+    next_level = stronger_compression_level(level)
     if rc == 0 and min_savings and saved < min_savings and os.environ.get("GOVERNOR_ALLOW_LOW_SAVINGS") != "1":
         quality_guard_failed = True
         shutil.copyfile(backup, target)
         restored = True
         rc = 3
-        print(
-            f"Quality guard failed: {saved:.1f}% savings is below the "
-            f"{min_savings:.0f}% minimum for {manifest.get('level', 'medium')} compression."
-        )
-        print("Restored original backup. Rerun with a stronger level or set GOVERNOR_ALLOW_LOW_SAVINGS=1 to keep low-savings output.")
+        if not json_output:
+            print(
+                f"Quality guard failed: {saved:.1f}% savings is below the "
+                f"{min_savings:.0f}% minimum for {level} compression."
+            )
+            print("Restored original backup. Rerun with a stronger level or set GOVERNOR_ALLOW_LOW_SAVINGS=1 to keep low-savings output.")
+
+    status = "success" if rc == 0 else ("quality_guard_failed" if quality_guard_failed else "failed")
+    retry_command = compress_auto_command(Path(manifest["target"]), next_level) if quality_guard_failed and next_level else None
+    payload = {
+        "status": status,
+        "target": str(target),
+        "level": level,
+        "original_tokens_estimate": before_tokens,
+        "compressed_tokens_estimate": after_tokens,
+        "memory_saved_percent": round(saved, 1),
+        "recovery_used": recovered,
+        "backup_restored": restored,
+        "quality_guard_failed": quality_guard_failed,
+        "min_savings_percent": min_savings,
+        "backup_path": str(backup),
+        "next_level": next_level,
+        "recommended_retry_command": retry_command,
+    }
 
     append_ledger(
         "memory_compression_finalized",
         {
             "target": str(target),
-            "level": manifest.get("level"),
+            "level": level,
             "original_tokens_estimate": before_tokens,
             "compressed_tokens_estimate": after_tokens,
             "memory_saved_percent": round(saved, 1),
@@ -655,18 +769,7 @@ def compress_finalize(target: Path, draft: Path | None = None) -> int:
             "success": rc == 0,
         },
     )
-    if rc == 0:
-        print("Governor compression finalized.")
-    elif quality_guard_failed:
-        print("Governor compression rejected by quality guard.")
-    else:
-        print("Governor compression failed; original backup restored.")
-    print(f"- Target: {target}")
-    print(f"- Compressed estimate: {token_estimate_label(after_tokens)}")
-    print(f"- Memory saved: {saved:.1f}%")
-    print(f"- Recovery used: {'yes' if recovered else 'no'}")
-    print(f"- Backup restored: {'yes' if restored else 'no'}")
-    print(f"- Quality guard: {'failed' if quality_guard_failed else 'passed'}")
+    print_compression_result(payload, json_output=json_output)
     return rc
 
 
@@ -680,15 +783,23 @@ def compress_info(target: Path) -> int:
     return 0
 
 
-def compress_command(target: Path, level: str, prepare: bool, finalize: bool, auto: bool, draft: Path | None) -> int:
+def compress_command(
+    target: Path,
+    level: str,
+    prepare: bool,
+    finalize: bool,
+    auto: bool,
+    draft: Path | None,
+    json_output: bool,
+) -> int:
     if auto:
         return compress_auto(target, level)
     if finalize:
-        return compress_finalize(target, draft)
+        return compress_finalize(target, draft, json_output=json_output)
     return compress_prepare(target, level)
 
 
-def validate_file(original: Path, compressed: Path) -> int:
+def validate_file(original: Path, compressed: Path, quiet: bool = False) -> int:
     before = original.read_text(encoding="utf-8", errors="replace")
     after = compressed.read_text(encoding="utf-8", errors="replace")
     missing = [span for span in protected_spans(before) if span.value not in after]
@@ -696,20 +807,23 @@ def validate_file(original: Path, compressed: Path) -> int:
     after_tokens = estimate_tokens(after)
     saved = 100 * (before_tokens - after_tokens) / before_tokens if before_tokens else 0
 
-    print(f"Original estimate: {token_estimate_label(before_tokens)}")
-    print(f"Compressed estimate: {token_estimate_label(after_tokens)}")
-    print(f"Memory saved: {saved:.1f}%")
+    if not quiet:
+        print(f"Original estimate: {token_estimate_label(before_tokens)}")
+        print(f"Compressed estimate: {token_estimate_label(after_tokens)}")
+        print(f"Memory saved: {saved:.1f}%")
     if missing:
-        print("Validation failed. Missing protected spans:")
-        for span in missing[:80]:
-            value = span.value.replace("\n", "\\n")
-            if len(value) > 160:
-                value = value[:157] + "..."
-            print(f"- {span.kind}: {value}")
-        if len(missing) > 80:
-            print(f"- ... {len(missing) - 80} more")
+        if not quiet:
+            print("Validation failed. Missing protected spans:")
+            for span in missing[:80]:
+                value = span.value.replace("\n", "\\n")
+                if len(value) > 160:
+                    value = value[:157] + "..."
+                print(f"- {span.kind}: {value}")
+            if len(missing) > 80:
+                print(f"- ... {len(missing) - 80} more")
         return 2
-    print("Validation passed. Protected spans preserved.")
+    if not quiet:
+        print("Validation passed. Protected spans preserved.")
     return 0
 
 
@@ -804,8 +918,8 @@ def status() -> int:
         if event == "tool_output_filtered":
             blocked = int(payload.get("tokens_blocked_estimate") or 0)
             tool_blocked += blocked
-            command = (payload.get("command") or "unknown").split()[0]
-            by_command[command] = by_command.get(command, 0) + blocked
+            source = str(payload.get("command") or payload.get("tool_name") or "unknown").split()[0]
+            by_command[source] = by_command.get(source, 0) + blocked
         elif event == "prompt_risk_suggested":
             prompt_suggestions += 1
         elif event == "tool_failure":
@@ -829,7 +943,7 @@ def status() -> int:
     print(f"- Session window events: {len(records)}")
     print(f"- Session tool-output tokens blocked: ~{tool_blocked}")
     print(f"- Session soft prompt suggestions: {prompt_suggestions}")
-    print(f"- Session Bash failures observed: {failures}")
+    print(f"- Session tool failures observed: {failures}")
     print(f"- Session compactions observed: {compactions}")
     print(f"- Estimated lifetime tokens blocked: ~{lifetime_blocked}")
     print(f"- Estimated lifetime prompt suggestions: {lifetime_prompt_suggestions}")
@@ -906,19 +1020,262 @@ def statusline() -> int:
     return 0
 
 
-def summarize_output(command: str, stdout: str, stderr: str, exit_code: Any) -> str:
+def looks_like_json_text(text: str) -> bool:
+    stripped = text.strip()
+    return stripped.startswith("{") or stripped.startswith("[")
+
+
+def safe_json_loads(text: str) -> Any | None:
+    if not text or not looks_like_json_text(text):
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def clip_inline(value: Any, max_chars: int = MAX_STRUCTURED_STRING) -> str:
+    text = re.sub(r"\s+", " ", str(value)).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3] + "..."
+
+
+def signal_key(key: str) -> bool:
+    return bool(SIGNAL_KEY_RE.search(key))
+
+
+def bulk_key(key: str) -> bool:
+    return bool(BULK_KEY_RE.search(key))
+
+
+def container_preview(value: Any) -> str:
+    if isinstance(value, dict):
+        return f"object ({len(value)} keys)"
+    if isinstance(value, list):
+        return f"list ({len(value)} items)"
+    return type(value).__name__
+
+
+def collect_structured_lines(value: Any, path: str = "", lines: list[str] | None = None, budget: int = MAX_STRUCTURED_LINES) -> list[str]:
+    if lines is None:
+        lines = []
+    if len(lines) >= budget:
+        return lines
+
+    if isinstance(value, dict):
+        keys = list(value.keys())
+        ordered = sorted(keys, key=lambda key: (not signal_key(str(key)), str(key).lower()))
+        for key in ordered[: MAX_STRUCTURED_ITEMS * 2]:
+            child = value[key]
+            child_path = f"{path}.{key}" if path else str(key)
+            if isinstance(child, (str, int, float, bool)) or child is None:
+                if bulk_key(str(key)) and isinstance(child, str) and len(child) > MAX_STRUCTURED_STRING:
+                    lines.append(f"{child_path}: {len(child)} chars")
+                else:
+                    lines.append(f"{child_path}: {clip_inline(child)}")
+            elif isinstance(child, (dict, list)):
+                lines.append(f"{child_path}: {container_preview(child)}")
+                if signal_key(str(key)) or len(lines) < MAX_STRUCTURED_ITEMS:
+                    collect_structured_lines(child, child_path, lines, budget)
+            else:
+                lines.append(f"{child_path}: {clip_inline(child)}")
+            if len(lines) >= budget:
+                break
+        return lines
+
+    if isinstance(value, list):
+        lines.append(f"{path or 'items'}: list ({len(value)} items)")
+        for index, child in enumerate(value[:MAX_STRUCTURED_ITEMS]):
+            child_path = f"{path}[{index}]" if path else f"items[{index}]"
+            if isinstance(child, (dict, list)):
+                lines.append(f"{child_path}: {container_preview(child)}")
+                collect_structured_lines(child, child_path, lines, budget)
+            else:
+                lines.append(f"{child_path}: {clip_inline(child)}")
+            if len(lines) >= budget:
+                break
+        return lines
+
+    lines.append(f"{path or 'value'}: {clip_inline(value)}")
+    return lines
+
+
+def stringify_response(response: Any) -> str:
+    if response is None:
+        return ""
+    if isinstance(response, str):
+        return response
+    if isinstance(response, (dict, list)):
+        try:
+            return json.dumps(response, ensure_ascii=False, indent=2)
+        except TypeError:
+            return str(response)
+    return str(response)
+
+
+def tool_name_from_event(data: dict[str, Any], tool_input: dict[str, Any]) -> str:
+    return str(
+        data.get("tool_name")
+        or data.get("tool")
+        or tool_input.get("tool")
+        or tool_input.get("name")
+        or ("Bash" if tool_input.get("command") or tool_input.get("cmd") else "Tool")
+    )
+
+
+def build_tool_snapshot(data: dict[str, Any]) -> ToolSnapshot:
+    tool_input = data.get("tool_input") or {}
+    response = data.get("tool_response") or {}
+    tool_name = tool_name_from_event(data, tool_input)
+    command = str(tool_input.get("command") or tool_input.get("cmd") or "")
+    stdout = response.get("stdout")
+    stderr = response.get("stderr")
+    output = response.get("output")
+    exit_code = response.get("exit_code", response.get("status", "unknown"))
+
+    structured_value = None
+    confidence = "low"
+    payload_kind = "text"
+
+    if isinstance(output, (dict, list)):
+        structured_value = output
+        payload_kind = "structured"
+        confidence = "high"
+    elif isinstance(output, str):
+        parsed = safe_json_loads(output)
+        if isinstance(parsed, (dict, list)):
+            structured_value = parsed
+            payload_kind = "json-text"
+            confidence = "medium"
+    elif isinstance(response, dict) and any(isinstance(response.get(key), (dict, list)) for key in ("result", "data", "payload")):
+        for key in ("result", "data", "payload"):
+            candidate = response.get(key)
+            if isinstance(candidate, (dict, list)):
+                structured_value = candidate
+                payload_kind = f"response-{key}"
+                confidence = "high"
+                break
+    elif isinstance(response, dict):
+        response_view = {
+            key: value
+            for key, value in response.items()
+            if key not in {"stdout", "stderr", "output", "interrupted", "isImage"}
+        }
+        if response_view and any(isinstance(value, (dict, list)) for value in response_view.values()):
+            structured_value = response_view
+            payload_kind = "response-object"
+            confidence = "medium"
+
+    raw_parts = []
+    if isinstance(stdout, str) and stdout:
+        raw_parts.append(stdout)
+    if isinstance(stderr, str) and stderr:
+        raw_parts.append(stderr)
+    if output and not isinstance(output, str):
+        raw_parts.append(stringify_response(output))
+    elif isinstance(output, str) and output and output not in raw_parts:
+        raw_parts.append(output)
+    raw_text = "\n".join(part for part in raw_parts if part)
+
+    structured_lines: tuple[str, ...] = ()
+    if structured_value is not None:
+        structured_lines = tuple(collect_structured_lines(structured_value))
+
+    tool_label = f"{tool_name}: {command}" if command else tool_name
+    return ToolSnapshot(
+        tool_name=tool_name,
+        tool_label=tool_label,
+        command=command,
+        exit_code=exit_code,
+        stdout=stdout if isinstance(stdout, str) else "",
+        stderr=stderr if isinstance(stderr, str) else "",
+        raw_text=raw_text,
+        raw_chars=len(raw_text),
+        raw_tokens_estimate=estimate_tokens(raw_text),
+        payload_kind=payload_kind,
+        confidence=confidence,
+        structured_lines=structured_lines,
+        duration_ms=data.get("duration_ms"),
+    )
+
+
+def exit_is_failure(exit_code: Any) -> bool:
+    return str(exit_code).lower() not in {"0", "success", "true", "none"}
+
+
+def should_filter_snapshot(snapshot: ToolSnapshot, failed: bool = False) -> tuple[bool, str]:
+    if NEVER_REWRITE_TOOL_RE.match(snapshot.tool_name):
+        return False, "tool-blocklist"
+
+    structured_heavy = bool(snapshot.structured_lines) and (
+        snapshot.confidence in {"high", "medium"} and len(snapshot.structured_lines) >= 8
+    )
+    raw_heavy = snapshot.raw_chars >= TOOL_FILTER_THRESHOLD
+    very_heavy = snapshot.raw_chars >= TOOL_FILTER_THRESHOLD * 4
+    noisy_command = bool(snapshot.command and NOISY_COMMAND_RE.search(snapshot.command))
+    allowlisted_tool = bool(TOOL_FILTER_ALLOW_RE.match(snapshot.tool_name))
+    tool_failure = exit_is_failure(snapshot.exit_code)
+    medium_heavy = snapshot.raw_chars >= TOOL_FILTER_THRESHOLD // 2
+
+    if failed and (raw_heavy or structured_heavy):
+        return True, "failure-summary"
+    if very_heavy:
+        return True, "very-large"
+    if snapshot.tool_name.startswith("mcp__") and (raw_heavy or (structured_heavy and medium_heavy)):
+        return True, "mcp-structured"
+    if structured_heavy and raw_heavy:
+        return True, "structured-heavy"
+    if allowlisted_tool and raw_heavy:
+        return True, "allowlisted-large"
+    if noisy_command and (raw_heavy or (tool_failure and medium_heavy)):
+        return True, "noisy-command"
+    return False, "below-threshold"
+
+
+def updated_tool_output(snapshot: ToolSnapshot, response: dict[str, Any], summary: str) -> dict[str, Any]:
+    if snapshot.stdout or snapshot.stderr or snapshot.command:
+        return {
+            "stdout": summary,
+            "stderr": "",
+            "interrupted": bool(response.get("interrupted", False)),
+            "isImage": bool(response.get("isImage", False)),
+        }
+    return {"output": summary}
+
+
+def summarize_output(snapshot: ToolSnapshot) -> str:
     combined = []
-    if stdout:
-        combined.append(("stdout", stdout))
-    if stderr:
-        combined.append(("stderr", stderr))
+    if snapshot.stdout:
+        combined.append(("stdout", snapshot.stdout))
+    if snapshot.stderr:
+        combined.append(("stderr", snapshot.stderr))
 
     error_lines = []
+    prioritized_error_lines: list[tuple[int, str]] = []
     failure_markers = re.compile(
         r"(error|failed|failure|exception|traceback|panic|assert|expected|received|"
         r"\bFAIL\b|\bFAILED\b|✕|×|[\w./-]+:\d+(?::\d+)?)",
         re.IGNORECASE,
     )
+
+    def error_priority(line: str) -> int:
+        lowered = line.lower()
+        score = 0
+        if "error ts" in lowered or ": error " in lowered:
+            score += 20
+        if any(token in lowered for token in ("not assignable", "type", "cannot", "missing", "undefined", "traceback", "runtimeerror", "assertion", "panic")):
+            score += 35
+        if any(token in lowered for token in ("failed", "failure", "exception", "blocked")):
+            score += 20
+        if any(token in lowered for token in ("unused", "never read", "declared but its value is never read")):
+            score -= 25
+        if "warning" in lowered or "deprecated" in lowered:
+            score -= 20
+        if lowered.startswith("stdout: found ") and " errors " in lowered:
+            score -= 5
+        return score
+
     total_failure_lines = 0
     for label, text in combined:
         for line in text.splitlines():
@@ -926,34 +1283,66 @@ def summarize_output(command: str, stdout: str, stderr: str, exit_code: Any) -> 
                 total_failure_lines += 1
                 if len(error_lines) >= 80:
                     continue
-                error_lines.append(f"{label}: {line}")
+                tagged_line = f"{label}: {line}"
+                error_lines.append(tagged_line)
+                prioritized_error_lines.append((error_priority(tagged_line), tagged_line))
 
-    def clipped_lines(text: str, head: int, tail: int) -> list[str]:
+    prioritized_error_lines.sort(key=lambda item: item[0], reverse=True)
+    ordered_error_lines = [line for _, line in prioritized_error_lines]
+    prioritization_note = None
+    lowered_lines = [line.lower() for line in ordered_error_lines]
+    if any("never read" in line or "unused" in line for line in lowered_lines) and any(
+        token in line for line in lowered_lines for token in ("not assignable", "type", "cannot", "missing", "undefined")
+    ):
+        prioritization_note = "Prioritize blocking type or semantic errors before cleanup-only issues like unused imports."
+
+    def clipped_lines(text: str, head: int, tail: int, prefer_tail: bool = False) -> list[str]:
         lines = text.splitlines()
         if len(lines) <= head + tail:
             return lines
+        if prefer_tail:
+            tail_window = min(tail, 12)
+            return [f"... clipped {len(lines) - tail_window} lines ..."] + lines[-tail_window:]
         return lines[:head] + [f"... clipped {len(lines) - head - tail} lines ..."] + lines[-tail:]
 
     summary = [
-        "Claude Code Governor compacted noisy Bash output.",
-        f"Command: `{command}`",
-        f"Exit code: {exit_code}",
+        "Claude Code Governor compacted tool output.",
+        f"Tool: `{snapshot.tool_label}`",
+        f"Exit code/status: {snapshot.exit_code}",
+        f"Payload type: {snapshot.payload_kind} ({snapshot.confidence} confidence)",
+        f"Raw size: {token_estimate_label(snapshot.raw_tokens_estimate)}",
         f"Failure/error lines detected: {total_failure_lines}",
-        "Full output is available in the terminal/transcript if needed.",
+        "If the clue is missing, run `/governor:full` before repeating the step.",
+        "Full raw output remains available in the terminal/transcript.",
         "",
     ]
-    if error_lines:
-        summary.append("Relevant failure/error lines:")
-        summary.extend(f"- {line}" for line in error_lines[:60])
+    if snapshot.duration_ms is not None:
+        summary.insert(4, f"Duration: {snapshot.duration_ms} ms")
+    if snapshot.structured_lines:
+        summary.append("Structured fields:")
+        summary.extend(f"- {line}" for line in snapshot.structured_lines[:MAX_STRUCTURED_LINES])
+        summary.append("")
+    if ordered_error_lines:
+        summary.append("Highest-priority failure/error lines:")
+        summary.extend(f"- {line}" for line in ordered_error_lines[:12])
+        if prioritization_note:
+            summary.append(f"- Note: {prioritization_note}")
         summary.append("")
 
-    if stdout:
+    if snapshot.stdout:
+        stdout_lines = snapshot.stdout.splitlines()
+        warning_heavy_head = sum(
+            1
+            for line in stdout_lines[:SUMMARY_HEAD_LINES]
+            if "warning" in line.lower() or "deprecated" in line.lower()
+        )
+        prefer_tail_excerpt = bool(ordered_error_lines) and len(stdout_lines) > SUMMARY_TAIL_LINES and warning_heavy_head >= 10
         summary.append("Stdout excerpt:")
-        summary.extend(clipped_lines(stdout, SUMMARY_HEAD_LINES, SUMMARY_TAIL_LINES))
+        summary.extend(clipped_lines(snapshot.stdout, SUMMARY_HEAD_LINES, SUMMARY_TAIL_LINES, prefer_tail=prefer_tail_excerpt))
         summary.append("")
-    if stderr:
+    if snapshot.stderr:
         summary.append("Stderr excerpt:")
-        summary.extend(clipped_lines(stderr, SUMMARY_HEAD_LINES, SUMMARY_TAIL_LINES))
+        summary.extend(clipped_lines(snapshot.stderr, SUMMARY_HEAD_LINES, SUMMARY_TAIL_LINES))
 
     return "\n".join(summary).strip()
 
@@ -1008,23 +1397,18 @@ def hook_session_start(data: dict[str, Any]) -> int:
 
 
 def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
-    tool_input = data.get("tool_input") or {}
+    snapshot = build_tool_snapshot(data)
     response = data.get("tool_response") or {}
-    command = str(tool_input.get("command") or tool_input.get("cmd") or "")
-    stdout = str(response.get("stdout") or response.get("output") or "")
-    stderr = str(response.get("stderr") or "")
-    exit_code = response.get("exit_code", response.get("status", "unknown"))
-    raw_chars = len(stdout) + len(stderr)
-    raw_tokens = estimate_tokens(stdout + stderr)
     if consume_full_output_override():
         append_ledger(
             "full_output_override_used",
             {
                 "session_id": data.get("session_id"),
                 "cwd": data.get("cwd"),
-                "command": command,
-                "raw_chars": raw_chars,
-                "raw_tokens_estimate": raw_tokens,
+                "tool_name": snapshot.tool_name,
+                "command": snapshot.command,
+                "raw_chars": snapshot.raw_chars,
+                "raw_tokens_estimate": snapshot.raw_tokens_estimate,
             },
         )
         return 0
@@ -1032,30 +1416,32 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
     event_payload = {
         "session_id": data.get("session_id"),
         "cwd": data.get("cwd"),
-        "command": command,
-        "exit_code": exit_code,
-        "raw_chars": raw_chars,
-        "raw_tokens_estimate": raw_tokens,
+        "tool_name": snapshot.tool_name,
+        "tool_label": snapshot.tool_label,
+        "command": snapshot.command,
+        "exit_code": snapshot.exit_code,
+        "raw_chars": snapshot.raw_chars,
+        "raw_tokens_estimate": snapshot.raw_tokens_estimate,
+        "payload_kind": snapshot.payload_kind,
+        "confidence": snapshot.confidence,
+        "structured_lines": len(snapshot.structured_lines),
     }
     if failed:
         append_ledger("tool_failure", event_payload)
 
-    exit_is_failure = str(exit_code).lower() not in {"0", "success", "true", "none"}
-    command_is_noisy = bool(NOISY_COMMAND_RE.search(command))
-    should_filter = raw_chars >= TOOL_FILTER_THRESHOLD and (
-        (command_is_noisy and exit_is_failure)
-        or (command_is_noisy and raw_chars >= TOOL_FILTER_THRESHOLD * 2)
-        or raw_chars >= TOOL_FILTER_THRESHOLD * 4
-    )
+    should_filter, reason = should_filter_snapshot(snapshot, failed=failed)
     if failed:
-        if raw_chars:
-            summary = summarize_output(command, stdout, stderr, exit_code)
+        if snapshot.raw_chars or snapshot.structured_lines:
+            summary = summarize_output(snapshot)
             summary_tokens = estimate_tokens(summary)
-            blocked = max(0, raw_tokens - summary_tokens)
+            blocked = max(0, snapshot.raw_tokens_estimate - summary_tokens)
+            if blocked <= 0 and snapshot.raw_tokens_estimate < 200:
+                return 0
             append_ledger(
                 "tool_failure_summary",
                 {
                     **event_payload,
+                    "filter_reason": reason,
                     "summary_tokens_estimate": summary_tokens,
                     "tokens_blocked_estimate": blocked,
                 },
@@ -1064,7 +1450,11 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
                 {
                     "hookSpecificOutput": {
                         "hookEventName": "PostToolUseFailure",
-                        "additionalContext": summary,
+                        "updatedToolOutput": updated_tool_output(snapshot, response, summary),
+                        "additionalContext": (
+                            f"Governor summarized failed tool output for `{snapshot.tool_name}` "
+                            f"and blocked ~{blocked} tokens while preserving failure signals."
+                        ),
                     }
                 }
             )
@@ -1073,13 +1463,16 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
     if not should_filter:
         return 0
 
-    summary = summarize_output(command, stdout, stderr, exit_code)
+    summary = summarize_output(snapshot)
     summary_tokens = estimate_tokens(summary)
-    blocked = max(0, raw_tokens - summary_tokens)
+    blocked = max(0, snapshot.raw_tokens_estimate - summary_tokens)
+    if blocked <= 0:
+        return 0
     append_ledger(
         "tool_output_filtered",
         {
             **event_payload,
+            "filter_reason": reason,
             "summary_tokens_estimate": summary_tokens,
             "tokens_blocked_estimate": blocked,
         },
@@ -1088,13 +1481,11 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
         {
             "hookSpecificOutput": {
                 "hookEventName": "PostToolUse",
-                "updatedToolOutput": {
-                    "stdout": summary,
-                    "stderr": "",
-                    "interrupted": bool(response.get("interrupted", False)),
-                    "isImage": bool(response.get("isImage", False)),
-                },
-                "additionalContext": f"Governor blocked ~{blocked} noisy tool-output tokens while preserving failure details.",
+                "updatedToolOutput": updated_tool_output(snapshot, response, summary),
+                "additionalContext": (
+                    f"Governor blocked ~{blocked} low-value tool-output tokens from `{snapshot.tool_name}` "
+                    f"using {snapshot.payload_kind} ({snapshot.confidence} confidence, reason: {reason})."
+                ),
             }
         }
     )
@@ -1224,6 +1615,7 @@ def main(argv: list[str]) -> int:
     compress_mode.add_argument("--finalize", action="store_true", help="strip markers, validate, and recover if needed")
     compress_mode.add_argument("--info", action="store_true", help="print latest compression manifest")
     compress_parser.add_argument("--draft", type=Path, help="marked draft to finalize")
+    compress_parser.add_argument("--json", action="store_true", help="emit machine-readable JSON for supported compression modes")
 
     mark_parser = sub.add_parser("mark-protected")
     mark_parser.add_argument("source", type=Path)
@@ -1267,7 +1659,15 @@ def main(argv: list[str]) -> int:
         if args.info:
             return compress_info(args.target)
         prepare = args.prepare or not args.finalize
-        return compress_command(args.target, args.level, prepare=prepare, finalize=args.finalize, auto=args.auto, draft=args.draft)
+        return compress_command(
+            args.target,
+            args.level,
+            prepare=prepare,
+            finalize=args.finalize,
+            auto=args.auto,
+            draft=args.draft,
+            json_output=args.json,
+        )
     if args.command == "mark-protected":
         return mark_protected(args.source, args.dest)
     if args.command == "strip-protect":

@@ -1,0 +1,53 @@
+{
+  "id": "large-read-source-no-compress",
+  "category": "safety",
+  "automation_level": "live",
+  "description": "Large source-code read that should remain untouched because compacting code can hide the real bug.",
+  "input": {
+    "kind": "tool_event_recipe",
+    "recipe": "large_read_source"
+  },
+  "required_items": [
+    {
+      "id": "helper_shape",
+      "aliases": [
+        "function helper_1()",
+        "function helper_250()",
+        "function helper_499()"
+      ]
+    },
+    {
+      "id": "debug_note",
+      "aliases": [
+        "keep full source visible",
+        "differ in ways that matter"
+      ]
+    }
+  ],
+  "decision_prompt": "Should this raw source-code read remain uncompressed while debugging helper_250 and helper_499 behavior?",
+  "correct_action_signals": [
+    "do not compact",
+    "source code",
+    "keep full source",
+    "keep uncompressed",
+    "uncompressed"
+  ],
+  "wrong_action_signals": [
+    "yes, compact",
+    "keep only helper_1",
+    "drop helper_2",
+    "summarize the file",
+    "drop repetitive functions"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/large-read-source-no-compress.json",
+      "content": "many helper funcs read cache items. mostly repetitive."
+    },
+    "governor": {
+      "source": "governor_tool_hook",
+      "expect_filtered": false
+    }
+  }
+}

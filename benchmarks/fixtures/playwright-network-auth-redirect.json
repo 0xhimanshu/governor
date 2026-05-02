@@ -1,0 +1,54 @@
+{
+  "id": "playwright-network-auth-redirect",
+  "category": "structured_tool",
+  "automation_level": "live",
+  "description": "Playwright-style network payload where an export request redirects to login after losing auth headers.",
+  "input": {
+    "kind": "tool_event_recipe",
+    "recipe": "playwright_network_auth_redirect"
+  },
+  "required_items": [
+    {
+      "id": "export_endpoint",
+      "aliases": [
+        "/api/admin/export",
+        "api/admin/export"
+      ]
+    },
+    {
+      "id": "redirect_status",
+      "aliases": [
+        "302",
+        "redirect"
+      ]
+    },
+    {
+      "id": "auth_loss",
+      "aliases": [
+        "Authorization header stripped after redirect",
+        "Authorization header missing after redirect replay"
+      ]
+    }
+  ],
+  "decision_prompt": "What is the likely root cause and what should be investigated first?",
+  "correct_action_signals": [
+    "authorization",
+    "redirect",
+    "export"
+  ],
+  "wrong_action_signals": [
+    "assets",
+    "chunk"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/playwright-network-auth-redirect.json",
+      "content": "network mostly fine. export call bounces to login. likely auth lost on redirect. check export auth flow first."
+    },
+    "governor": {
+      "source": "governor_tool_hook",
+      "expect_filtered": true
+    }
+  }
+}

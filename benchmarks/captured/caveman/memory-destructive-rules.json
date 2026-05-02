@@ -1,0 +1,9 @@
+{
+  "fixture_id": "memory-destructive-rules",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:30:22.703303+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "03e60913f7f9934f",
+  "text": "Secrets: `STRIPE_SECRET_KEY`, `prod-db-primary`, `s3://app-prod-exports`.\nNo `rm -rf` / `DROP TABLE` / manual billing backfill without backup.\nAuth/billing changes → `pnpm test auth` && `pnpm test billing` before done.\nExport worker degrades → `us-east-1` failover runbook 2026-04-11.\nProduct = internal dashboard. No marketing rewrite."
+}

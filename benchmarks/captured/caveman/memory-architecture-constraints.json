@@ -1,0 +1,9 @@
+{
+  "fixture_id": "memory-architecture-constraints",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:30:16.729472+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "dd1293421cd0a46b",
+  "text": "Sync export, no Redis. `POST /api/admin/export` stays monolith. Flag `export-worker-v2` gates `workers/exporter.ts`. Touch export auth → verify both `tests/export/api.test.ts` + `tests/export/worker.test.ts`. Ops dashboard needs immediate status — no background-only UX."
+}

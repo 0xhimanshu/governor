@@ -1,0 +1,9 @@
+{
+  "fixture_id": "tsc-warning-root-cause",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:30:57.498803+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "5d382e7038a038bb",
+  "text": "**design-system build:**\n\n259× `TS6385` warnings from `node_modules/some-lib` — all noise, ignore.\n\n**2 real errors:**\n\n1. `src/layout/nav.tsx:12` — `TS6133`: `Link` imported but unused. Remove import.\n2. `src/settings/theme.ts:84` — `TS2322`: `\"compact\"` not assignable to `Density` type. Check `Density` union — likely missing `\"compact\"` or value should be different string literal.\n\n**Next:** Fix `Density` type first (likely source of intent), then remove unused `Link`."
+}

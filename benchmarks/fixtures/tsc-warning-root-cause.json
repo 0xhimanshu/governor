@@ -1,0 +1,54 @@
+{
+  "id": "tsc-warning-root-cause",
+  "category": "tool_log",
+  "automation_level": "live",
+  "description": "Long TypeScript build output with many warnings and one real type mismatch.",
+  "input": {
+    "kind": "tool_event_recipe",
+    "recipe": "tsc_warning_root_cause"
+  },
+  "required_items": [
+    {
+      "id": "theme_file",
+      "aliases": [
+        "src/settings/theme.ts",
+        "theme.ts(84,19)"
+      ]
+    },
+    {
+      "id": "type_error",
+      "aliases": [
+        "TS2322",
+        "Type '\"compact\"' is not assignable to type 'Density'"
+      ]
+    },
+    {
+      "id": "density_type",
+      "aliases": [
+        "Density"
+      ]
+    }
+  ],
+  "decision_prompt": "What is the first actionable issue and what file should be fixed first?",
+  "correct_action_signals": [
+    "theme.ts",
+    "ts2322",
+    "density"
+  ],
+  "wrong_action_signals": [
+    "fix deprecated api warnings",
+    "node_modules"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/tsc-warning-root-cause.json",
+      "content": "build noisy. actual bug in theme setting: compact not allowed for density type. fix theme first. ignore lib warnings."
+    },
+    "governor": {
+      "source": "governor_tool_hook",
+      "use_failure_hook": true,
+      "expect_filtered": true
+    }
+  }
+}

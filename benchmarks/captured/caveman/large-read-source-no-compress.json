@@ -1,0 +1,9 @@
+{
+  "fixture_id": "large-read-source-no-compress",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:57:56.290099+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "1c58dc38439f0802",
+  "text": "499 helpers. Pattern: `return config.cache['item_N']`. Three differ:\n\n```js\n// helper_1   — baseline (no fallback, no transform)\nfunction helper_1() { return config.cache['item_1']; }\n\n// helper_250 — nullish coalesce fallback\nfunction helper_250() { return config.cache['item_250'] ?? fallbackCache['item_250']; }\n\n// helper_499 — legacy key normalization wrapper\nfunction helper_499() { return normalizeLegacyKey(config.cache['item_499']); }\n```\n\nAll others: `return config.cache['item_N'];` — identical to helper_1."
+}

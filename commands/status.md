@@ -15,7 +15,7 @@ Report the compact dashboard:
 
 - tool-output tokens blocked
 - soft prompt suggestions
-- Bash failures observed
+- tool failures observed
 - compactions observed
 - biggest waste sources
 - session and estimated lifetime totals

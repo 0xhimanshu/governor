@@ -1,0 +1,793 @@
+{
+  "rows": [
+    {
+      "fixture_id": "burp-proxy-history-ssrf",
+      "category": "structured_tool",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 3597,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 4,
+      "required_items_found": 4,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 7762.1,
+      "decision_answer": "Fix SSRF on /api/admin/export — block server-side requests to RFC1918/link-local ranges, especially 169.254.169.254",
+      "decision_evidence": [
+        "BURP-CRIT-17: GET /api/admin/export?target=http://169.254.169.254/latest/meta-data/iam/ returned 200",
+        "metadata service reachable from export worker — IAM credential theft possible",
+        "critical severity, high confidence"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "ssrf",
+        "/api/admin/export",
+        "169.254.169.254"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "burp-proxy-history-ssrf",
+      "category": "structured_tool",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 184,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 4,
+      "required_items_found": 3,
+      "required_items_lost": 1,
+      "missing_item_ids": [
+        "finding_title"
+      ],
+      "vclr": 0.25,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 7084.8,
+      "decision_answer": "Probe SSRF to extract IAM creds: GET /api/admin/export?target=http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "decision_evidence": [
+        "BURP-CRIT-17: SSRF confirmed via AWS IMDS reachable at /iam/ path",
+        "200 response — server fetches attacker-controlled URL, escalation to credential theft possible"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "ssrf",
+        "/api/admin/export",
+        "169.254.169.254"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "burp-proxy-history-ssrf",
+      "category": "structured_tool",
+      "condition": "governor",
+      "source_mode": "live_governor_tool_hook",
+      "tokens": 384,
+      "filtered": true,
+      "filter_reason": "mcp-structured",
+      "hook_ms": 0.4,
+      "required_items_total": 4,
+      "required_items_found": 4,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 8961.7,
+      "decision_answer": "Fix SSRF on /api/admin/export — block or whitelist the `target` parameter server-side, deny IMDS/RFC-1918 ranges",
+      "decision_evidence": [
+        "GET /api/admin/export?target=http://169.254.169.254/latest/meta-data/iam/ returned HTTP 200",
+        "Proxy history confirms metadata service reachable from export worker",
+        "severity: critical, confidence: high (BURP-CRIT-17)"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "ssrf",
+        "/api/admin/export"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "intent-dashboard-scope-drift",
+      "category": "intent",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 133,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 5,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 6333.1,
+      "decision_answer": "reject",
+      "decision_evidence": [
+        "Contract non-negotiable: do not turn first screen into marketing hero or landing page",
+        "Request explicitly asks for big hero and glossy branding — direct contradiction",
+        "Product is internal revenue-ops dashboard; homepage aesthetic serves no operational function"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "reject"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "intent-dashboard-scope-drift",
+      "category": "intent",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 156,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 4,
+      "required_items_lost": 1,
+      "missing_item_ids": [
+        "operational_tables"
+      ],
+      "vclr": 0.2,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 11366.3,
+      "decision_answer": "narrow — accept visual polish within data-dense paradigm, reject hero/branding layout",
+      "decision_evidence": [
+        "CONTRACT hard-rejects 'first screen ≠ hero/landing page'",
+        "STAKEHOLDER REQUEST already flagged as contradicting non-negotiable",
+        "NEXT DECISION explicitly permits polish within data-dense tables only"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "reject",
+        "narrow"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "intent-dashboard-scope-drift",
+      "category": "intent",
+      "condition": "governor",
+      "source_mode": "captured_file",
+      "tokens": 156,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 5,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 7014.5,
+      "decision_answer": "reject",
+      "decision_evidence": [
+        "Contract hard-no: hero section, marketing/landing-page layout, glossy branding",
+        "Stakeholder request is exactly 'product homepage with big hero and glossy branding' — direct contradiction",
+        "Next decision already locked: dense operational tables first, no hero"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "reject"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "large-read-source-no-compress",
+      "category": "safety",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 7348,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 2,
+      "required_items_found": 2,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 13748.2,
+      "decision_answer": "keep uncompressed — helper_250 and helper_499 have divergent logic that compression would flatten",
+      "decision_evidence": [
+        "helper_250 uses nullish coalescing with fallbackCache: `config.cache['item_250'] ?? fallbackCache['item_250']`",
+        "helper_499 wraps return in `normalizeLegacyKey(...)` — distinct transformation vs plain cache access",
+        "helpers 1–249 and 251–498 are structurally identical; only 250 and 499 differ — the diff is the bug surface",
+        "debug comment explicitly flags helper_1/250/499 as differing in ways that matter"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "keep uncompressed",
+        "uncompressed"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "large-read-source-no-compress",
+      "category": "safety",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 130,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 2,
+      "required_items_found": 1,
+      "required_items_lost": 1,
+      "missing_item_ids": [
+        "debug_note"
+      ],
+      "vclr": 0.5,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 12422.9,
+      "decision_answer": "keep compressed — signal sufficient",
+      "decision_evidence": [
+        "helper_250 behavioral diff captured: nullish coalesce fallback to fallbackCache",
+        "helper_499 behavioral diff captured: normalizeLegacyKey wrapper call",
+        "497 other helpers confirmed identical to helper_1 baseline — no signal loss from omitting them"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [],
+      "wrong_action_hits": [],
+      "decision_preserved": 0.0,
+      "wrong_decision": 1.0
+    },
+    {
+      "fixture_id": "large-read-source-no-compress",
+      "category": "safety",
+      "condition": "governor",
+      "source_mode": "live_governor_tool_hook",
+      "tokens": 7348,
+      "filtered": false,
+      "filter_reason": "tool-blocklist",
+      "hook_ms": 0.0,
+      "required_items_total": 2,
+      "required_items_found": 2,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 11795.7,
+      "decision_answer": "keep uncompressed — helper_250 and helper_499 have structurally distinct bodies that compression would erase",
+      "decision_evidence": [
+        "helper_250 uses nullish coalescing with fallbackCache: `config.cache['item_250'] ?? fallbackCache['item_250']`",
+        "helper_499 wraps return in normalizeLegacyKey(): `normalizeLegacyKey(config.cache['item_499'])`",
+        "helpers 2–249 and 251–498 are identical pattern — only indices differ, so compressed form safe for those",
+        "debug note at top explicitly flags helper_1/250/499 as behaviorally distinct"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "keep uncompressed",
+        "uncompressed"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "memory-architecture-constraints",
+      "category": "memory",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 135,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 5,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 6934.8,
+      "decision_answer": "keep export sync in monolith; route through POST /api/admin/export; no Redis; no background-only UX",
+      "decision_evidence": [
+        "POST /api/admin/export must stay inside the monolith",
+        "queue worker behind feature flag export-worker-v2 — not stable",
+        "internal ops dashboard needs immediate export status",
+        "no Redis as new dependency this milestone",
+        "touch export auth → verify both tests/export/api.test.ts and tests/export/worker.test.ts"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "monolith",
+        "redis"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "memory-architecture-constraints",
+      "category": "memory",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 68,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 4,
+      "required_items_lost": 1,
+      "missing_item_ids": [
+        "redis_constraint"
+      ],
+      "vclr": 0.2,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 6812.5,
+      "decision_answer": "Keep export synchronous, monolith-only, behind feature flag; update both test files on any auth change",
+      "decision_evidence": [
+        "Sync export, no Redis",
+        "POST /api/admin/export stays monolith",
+        "Flag export-worker-v2 gates workers/exporter.ts",
+        "Touch export auth → verify both tests/export/api.test.ts + tests/export/worker.test.ts",
+        "Ops dashboard needs immediate status — no background-only UX"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "monolith"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "memory-architecture-constraints",
+      "category": "memory",
+      "condition": "governor",
+      "source_mode": "captured_file",
+      "tokens": 89,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 4,
+      "required_items_lost": 1,
+      "missing_item_ids": [
+        "redis_constraint"
+      ],
+      "vclr": 0.2,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 9049.0,
+      "decision_answer": "keep export synchronous in monolith, skip worker/Redis paths, update both test files on any auth touch",
+      "decision_evidence": [
+        "POST /api/admin/export stays synchronous, inside monolith",
+        "workers/exporter.ts behind flag export-worker-v2 — do not enable",
+        "No Redis this milestone",
+        "Touch export auth → run both tests/export/api.test.ts + tests/export/worker.test.ts",
+        "Ops dashboard needs immediate status — no background-only UX"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "monolith",
+        "redis"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "memory-destructive-rules",
+      "category": "memory",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 135,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 5,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 6251.8,
+      "decision_answer": "run pnpm test auth and pnpm test billing before claiming success; no destructive ops without backup",
+      "decision_evidence": [
+        "If auth or billing changes, run `pnpm test auth` and `pnpm test billing` before claiming success",
+        "Never run destructive production commands like `rm -rf`, `DROP TABLE`, or manual billing backfills without a backup plan",
+        "The product is an internal dashboard. Do not rewrite it into a marketing hero page"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "pnpm test auth",
+        "backup"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "memory-destructive-rules",
+      "category": "memory",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 84,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 5,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 5340.0,
+      "decision_answer": "run pnpm test auth && pnpm test billing before marking done",
+      "decision_evidence": [
+        "Auth/billing changes → pnpm test auth && pnpm test billing before done",
+        "No rm -rf / DROP TABLE / manual billing backfill without backup",
+        "Secrets: STRIPE_SECRET_KEY, prod-db-primary, s3://app-prod-exports"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "pnpm test auth"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "memory-destructive-rules",
+      "category": "memory",
+      "condition": "governor",
+      "source_mode": "captured_file",
+      "tokens": 107,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 5,
+      "required_items_found": 5,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 6532.2,
+      "decision_answer": "run `pnpm test auth` && `pnpm test billing` before marking done; no destructive ops without backup plan",
+      "decision_evidence": [
+        "Auth/billing changes → run `pnpm test auth` && `pnpm test billing` before done",
+        "No destructive prod ops (`rm -rf`, `DROP TABLE`, manual billing backfills) without backup plan",
+        "Preserve secrets/identifiers: `STRIPE_SECRET_KEY`, `prod-db-primary`, `s3://app-prod-exports`",
+        "Product = internal dashboard. No marketing rewrites."
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "pnpm test auth",
+        "backup"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "noisy-pytest-ssrf-tail",
+      "category": "tool_log",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 2773,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 4,
+      "required_items_found": 4,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 6362.5,
+      "decision_answer": "Add SSRF guard blocking requests to 169.254.169.254 (cloud metadata IP) in the export endpoint handler",
+      "decision_evidence": [
+        "tests/test_export.py::test_metadata_endpoint_blocked FAILED",
+        "AssertionError: SSRF guard missing for metadata endpoint",
+        "RuntimeError: request to 169.254.169.254 should be blocked",
+        "/api/admin/export?target=http://169.254.169.254/latest/meta-data/iam/"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "ssrf",
+        "export",
+        "169.254.169.254"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "noisy-pytest-ssrf-tail",
+      "category": "tool_log",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 106,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 4,
+      "required_items_found": 4,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 7198.6,
+      "decision_answer": "Add SSRF blocklist in export handler — reject 169.254.169.254, ::1, 10.x, 172.16-31.x, 192.168.x before outbound fetch",
+      "decision_evidence": [
+        "test_metadata_endpoint_blocked fails: AssertionError SSRF guard missing",
+        "RuntimeError: request to 169.254.169.254 should be blocked",
+        "Endpoint: GET /api/admin/export?target=http://169.254.169.254/latest/meta-data/iam/"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "ssrf",
+        "export",
+        "169.254.169.254"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "noisy-pytest-ssrf-tail",
+      "category": "tool_log",
+      "condition": "governor",
+      "source_mode": "live_governor_tool_hook",
+      "tokens": 999,
+      "filtered": true,
+      "filter_reason": "noisy-command",
+      "hook_ms": 4.2,
+      "required_items_total": 4,
+      "required_items_found": 4,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 7003.7,
+      "decision_answer": "Add SSRF guard blocking requests to 169.254.254.0/16 (AWS metadata) before export endpoint fetches target URL",
+      "decision_evidence": [
+        "tests/test_export.py::test_metadata_endpoint_blocked FAILED",
+        "AssertionError: SSRF guard missing for metadata endpoint",
+        "RuntimeError: request to 169.254.169.254 should be blocked"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "ssrf",
+        "export"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "playwright-network-auth-redirect",
+      "category": "structured_tool",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 2814,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 3,
+      "required_items_found": 3,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 9912.7,
+      "decision_answer": "Replay /api/admin/export with Authorization header manually (no redirect follow) to confirm server strips it on 302; then test if header survives with fetch credentials:include or cookie-based auth instead",
+      "decision_evidence": [
+        "302 on /api/admin/export with Location: /login?next=%2Fapi%2Fadmin%2Fexport — server not accepting current auth",
+        "console_errors: 'Authorization header missing after redirect replay' — browser drops Authorization on cross-redirect per RFC 9110",
+        "redirect lands on /login?next=... as document load — auth flow broken, export unreachable"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "authorization",
+        "redirect",
+        "export"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "playwright-network-auth-redirect",
+      "category": "structured_tool",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 150,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 3,
+      "required_items_found": 3,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 7801.5,
+      "decision_answer": "Replay direct GET/POST to /api/admin/export with valid Bearer token, no session cookie",
+      "decision_evidence": [
+        "Authorization header stripped on 302 redirect — standard HTTP client behavior, not a bug",
+        "next param preserved in redirect URL suggests server-side auth check happens post-redirect via session, not pre-redirect via header",
+        "Console error confirms client replayed request without header after redirect"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "export"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "playwright-network-auth-redirect",
+      "category": "structured_tool",
+      "condition": "governor",
+      "source_mode": "live_governor_tool_hook",
+      "tokens": 557,
+      "filtered": true,
+      "filter_reason": "mcp-structured",
+      "hook_ms": 0.1,
+      "required_items_total": 3,
+      "required_items_found": 3,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 7957.5,
+      "decision_answer": "Verify whether client re-sends Authorization header on the 302 redirect to /login and whether export endpoint accepts cookie-based auth as fallback",
+      "decision_evidence": [
+        "selected_request.status 302 on /api/admin/export with Location /login?next=%2Fapi%2Fadmin%2Fexport",
+        "console_errors[0]: Authorization header missing after redirect replay",
+        "selected_request.notes: Authorization header stripped after redirect; export flow re-enters login"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "authorization",
+        "redirect",
+        "export"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "tsc-warning-root-cause",
+      "category": "tool_log",
+      "condition": "control",
+      "source_mode": "raw",
+      "tokens": 7176,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 3,
+      "required_items_found": 3,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 8477.9,
+      "decision_answer": "Fix unused 'Link' import in src/layout/nav.tsx line 12",
+      "decision_evidence": [
+        "src/layout/nav.tsx(12,7): error TS6133: 'Link' is declared but its value is never read",
+        "Two actual errors exist; nav.tsx error appears first in output"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [],
+      "wrong_action_hits": [],
+      "decision_preserved": 0.0,
+      "wrong_decision": 1.0
+    },
+    {
+      "fixture_id": "tsc-warning-root-cause",
+      "category": "tool_log",
+      "condition": "caveman",
+      "source_mode": "captured_file",
+      "tokens": 119,
+      "filtered": null,
+      "filter_reason": null,
+      "hook_ms": null,
+      "required_items_total": 3,
+      "required_items_found": 3,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 5774.6,
+      "decision_answer": "Fix TS2322 in src/settings/theme.ts:84 — add 'compact' to Density union or correct the string literal",
+      "decision_evidence": [
+        "TS2322: '\"compact\"' not assignable to Density type at src/settings/theme.ts:84",
+        "Context notes: fix Density first as likely source of intent"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "theme.ts",
+        "ts2322",
+        "density"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    },
+    {
+      "fixture_id": "tsc-warning-root-cause",
+      "category": "tool_log",
+      "condition": "governor",
+      "source_mode": "live_governor_tool_hook",
+      "tokens": 498,
+      "filtered": true,
+      "filter_reason": "failure-summary",
+      "hook_ms": 6.2,
+      "required_items_total": 3,
+      "required_items_found": 3,
+      "required_items_lost": 0,
+      "missing_item_ids": [],
+      "vclr": 0.0,
+      "decision_eval_status": "ok",
+      "decision_eval_ms": 6546.2,
+      "decision_answer": "Fix type mismatch at src/settings/theme.ts:84 — 'compact' not valid for Density type",
+      "decision_evidence": [
+        "TS2322 is blocking type error (wrong value assigned to typed field)",
+        "Note says prioritize blocking type/semantic errors before cleanup-only unused imports"
+      ],
+      "decision_confidence": "high",
+      "correct_action_hits": [
+        "theme.ts",
+        "density"
+      ],
+      "wrong_action_hits": [],
+      "decision_preserved": 1.0,
+      "wrong_decision": 0.0
+    }
+  ],
+  "summary": {
+    "control": {
+      "fixtures": 8.0,
+      "avg_tokens": 3013.875,
+      "avg_token_savings_pct": 0.0,
+      "avg_vclr": 0.0,
+      "avg_items_lost": 0.0,
+      "filtered_rate": null,
+      "decision_preservation_rate": 0.875,
+      "wrong_decision_rate": 0.125
+    },
+    "caveman": {
+      "fixtures": 8.0,
+      "avg_tokens": 124.625,
+      "avg_token_savings_pct": 69.05228010132174,
+      "avg_vclr": 0.14375,
+      "avg_items_lost": 0.5,
+      "filtered_rate": null,
+      "decision_preservation_rate": 0.875,
+      "wrong_decision_rate": 0.125
+    },
+    "governor": {
+      "fixtures": 8.0,
+      "avg_tokens": 1267.25,
+      "avg_token_savings_pct": 45.51079588353926,
+      "avg_vclr": 0.025,
+      "avg_items_lost": 0.125,
+      "filtered_rate": 0.8,
+      "decision_preservation_rate": 1.0,
+      "wrong_decision_rate": 0.0
+    }
+  },
+  "decision_backend": "claude"
+}

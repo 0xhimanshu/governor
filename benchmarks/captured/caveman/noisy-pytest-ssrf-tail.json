@@ -1,0 +1,9 @@
+{
+  "fixture_id": "noisy-pytest-ssrf-tail",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:30:32.796685+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "5e0c382a2c08f879",
+  "text": "```\nFAIL: tests/test_export.py::test_metadata_endpoint_blocked\nAssertionError: SSRF guard missing for metadata endpoint\nRuntimeError: request to 169.254.169.254 should be blocked\n\nEndpoint: GET /api/admin/export?target=http://169.254.169.254/latest/meta-data/iam/\nNext action: add SSRF blocklist in export handler — reject requests to 169.254.169.254 (and ::1, 10.x, 172.16-31.x, 192.168.x) before making outbound fetch.\n```"
+}

@@ -1,0 +1,9 @@
+{
+  "fixture_id": "memory-architecture-constraints",
+  "condition": "governor",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T22:01:00.075917+00:00",
+  "system_source": "generated:governor_response_context",
+  "fixture_fingerprint": "dd1293421cd0a46b",
+  "text": "**Architecture constraints — export flow**\n\n- `POST /api/admin/export` stays synchronous, inside monolith\n- `workers/exporter.ts` behind flag `export-worker-v2` — do not enable\n- Touch export auth → run both `tests/export/api.test.ts` + `tests/export/worker.test.ts`\n- No Redis this milestone\n- Ops dashboard needs immediate status — no background-only UX"
+}

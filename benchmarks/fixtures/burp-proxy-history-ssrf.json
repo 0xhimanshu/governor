@@ -1,0 +1,58 @@
+{
+  "id": "burp-proxy-history-ssrf",
+  "category": "structured_tool",
+  "automation_level": "live",
+  "description": "Burp-style MCP payload with large history and one critical SSRF finding.",
+  "input": {
+    "kind": "tool_event_recipe",
+    "recipe": "burp_proxy_history_ssrf"
+  },
+  "required_items": [
+    {
+      "id": "severity",
+      "aliases": [
+        "critical"
+      ]
+    },
+    {
+      "id": "affected_endpoint",
+      "aliases": [
+        "/api/admin/export"
+      ]
+    },
+    {
+      "id": "metadata_host",
+      "aliases": [
+        "169.254.169.254"
+      ]
+    },
+    {
+      "id": "finding_title",
+      "aliases": [
+        "SSRF via export target parameter"
+      ]
+    }
+  ],
+  "decision_prompt": "What is the most urgent finding and what endpoint should be fixed first?",
+  "correct_action_signals": [
+    "critical",
+    "ssrf",
+    "/api/admin/export",
+    "169.254.169.254"
+  ],
+  "wrong_action_signals": [
+    "/api/invite",
+    "rate limit first"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/burp-proxy-history-ssrf.json",
+      "content": "burp says bad bug in export target. looks like ssrf to metadata host. fix export endpoint first."
+    },
+    "governor": {
+      "source": "governor_tool_hook",
+      "expect_filtered": true
+    }
+  }
+}

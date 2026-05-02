@@ -1,0 +1,9 @@
+{
+  "fixture_id": "intent-dashboard-scope-drift",
+  "condition": "governor",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T22:00:51.107208+00:00",
+  "system_source": "generated:governor_response_context",
+  "fixture_fingerprint": "aedcb7a5e4911496",
+  "text": "**Contract (locked)**\nRevenue-ops internal dashboard. Dense tables + filters. Incident queue. Billing dispute workflow.\n\n**Hard no:** hero section, marketing/landing-page layout, glossy branding.\n\n**Planned files:**\n- `src/pages/dashboard.tsx`\n- `src/components/disputes-table.tsx`\n- `src/components/incident-queue.tsx`\n\n**Stakeholder drift to reject:** Request to add \"product homepage with big hero and glossy branding\" — contradicts approved contract. Decline. Polish via table UX, typography, filter clarity — not hero imagery.\n\n**Next decision:** Implement dashboard layout with dense operational tables first. No hero."
+}

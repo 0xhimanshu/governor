@@ -5,7 +5,8 @@ disable-model-invocation: false
 
 # Governor Compress
 
-Automatically compress memory files with dense professional prose while strictly protecting critical spans.
+Automatically compress memory files with dense professional prose while
+strictly protecting critical spans.
 
 Usage:
 
@@ -22,15 +23,21 @@ Compression targets:
 - `medium`: collapse narrative into decision bullets; target 35-55% savings outside protected spans.
 - `aggressive`: keep only rules, facts, commands, risks, decisions; target 50-70% savings outside protected spans.
 
-User experience: one command. Do not ask the user to edit drafts, copy paths, or run follow-up commands unless manual mode is explicitly requested or safety fallback is required.
+One-command rule: do not ask the user to edit drafts, copy paths, or run
+follow-up commands unless manual mode is explicitly requested or a safety
+fallback is required.
 
-Automatic execution is internal:
+Internal flow:
 
 - Run Governor auto mode.
+- Parse the returned JSON payload.
 - Rewrite the protected payload internally.
-- Finalize, validate, recover if needed, and restore the backup on unrecoverable failure.
+- Run the JSON finalize command, then inspect `status`.
+- If `status=quality_guard_failed` and `next_level` is present, retry once at
+  the stronger level using `retry_auto_command`.
+- Finalize, validate, recover if needed, and restore the backup on unrecoverable
+  failure.
 - Reject low-savings output with a quality guard.
-- If `light` or `medium` fails the quality guard, retry once at the next stronger level.
 - Return only the result summary.
 
 Manual mode (`manual` or `--manual`) is only for very large files or explicit user request.

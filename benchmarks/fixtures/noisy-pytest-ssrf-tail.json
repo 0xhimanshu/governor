@@ -1,0 +1,62 @@
+{
+  "id": "noisy-pytest-ssrf-tail",
+  "category": "tool_log",
+  "automation_level": "live",
+  "description": "Large pytest output where the real issue is an SSRF guard failure near the tail.",
+  "input": {
+    "kind": "tool_event_recipe",
+    "recipe": "noisy_pytest_ssrf_tail"
+  },
+  "required_items": [
+    {
+      "id": "failing_test",
+      "aliases": [
+        "tests/test_export.py::test_metadata_endpoint_blocked",
+        "test_metadata_endpoint_blocked"
+      ]
+    },
+    {
+      "id": "critical_endpoint",
+      "aliases": [
+        "/api/admin/export",
+        "export?target=http://169.254.169.254"
+      ]
+    },
+    {
+      "id": "metadata_host",
+      "aliases": [
+        "169.254.169.254"
+      ]
+    },
+    {
+      "id": "real_failure",
+      "aliases": [
+        "SSRF guard missing",
+        "request to 169.254.169.254 should be blocked"
+      ]
+    }
+  ],
+  "decision_prompt": "What is the first actionable issue and next fix?",
+  "correct_action_signals": [
+    "ssrf",
+    "export",
+    "169.254.169.254",
+    "ignore deprecation warnings"
+  ],
+  "wrong_action_signals": [
+    "fix deprecation warning",
+    "pkg_resources"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/noisy-pytest-ssrf-tail.json",
+      "content": "many tests pass. real bug: export test fail. block metadata host 169.254.169.254. ignore warning spam."
+    },
+    "governor": {
+      "source": "governor_tool_hook",
+      "use_failure_hook": true,
+      "expect_filtered": true
+    }
+  }
+}

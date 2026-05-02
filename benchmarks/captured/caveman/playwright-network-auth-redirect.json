@@ -1,0 +1,9 @@
+{
+  "fixture_id": "playwright-network-auth-redirect",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:30:41.600083+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "0c184024cc9c81df",
+  "text": "**Finding:** Auth header stripped on redirect.\n\n- Endpoint: `POST/GET https://app.example.com/api/admin/export`\n- Behavior: 302 → `/login?next=%2Fapi%2Fadmin%2Fexport`; `Authorization` header not forwarded post-redirect\n- Console error: `\"Authorization header missing after redirect replay\"`\n- Clue: `next` param preserved in redirect URL — test auth bypass by hitting `/api/admin/export` directly with valid token, bypassing redirect logic\n\n**Next:** Replay direct request to `/api/admin/export` with `Authorization` header; verify if server enforces auth pre-redirect or only checks session cookie."
+}

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Governor V2 Benchmark Fixture",
+  "type": "object",
+  "required": [
+    "id",
+    "category",
+    "automation_level",
+    "description",
+    "input",
+    "required_items",
+    "decision_prompt",
+    "conditions"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "category": {
+      "type": "string",
+      "enum": ["tool_log", "structured_tool", "memory", "intent", "safety"]
+    },
+    "automation_level": {
+      "type": "string",
+      "enum": ["live", "reference"]
+    },
+    "description": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["text", "tool_event", "tool_event_recipe"]
+        },
+        "content": { "type": "string" },
+        "payload": { "type": "object" },
+        "recipe": { "type": "string" }
+      }
+    },
+    "required_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "regex": { "type": "string" }
+        }
+      }
+    },
+    "decision_prompt": { "type": "string" },
+    "correct_action_signals": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "wrong_action_signals": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "correct_action_threshold": { "type": "integer", "minimum": 1 },
+    "conditions": {
+      "type": "object",
+      "properties": {
+        "caveman": { "$ref": "#/$defs/condition" },
+        "governor": { "$ref": "#/$defs/condition" }
+      }
+    }
+  },
+  "$defs": {
+    "condition": {
+      "type": "object",
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["inline", "governor_tool_hook", "raw"]
+        },
+        "content": { "type": "string" },
+        "captured_path": { "type": "string" },
+        "use_failure_hook": { "type": "boolean" },
+        "expect_filtered": { "type": "boolean" }
+      }
+    }
+  }
+}

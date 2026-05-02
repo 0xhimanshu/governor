@@ -9,6 +9,9 @@ __pycache__/
 .env.*
 !.env.example
 benchmarks/latest-*.json
+benchmarks/captured/*/latest-summary.json
+benchmarks/captured/*/latest-summary-*.json
+benchmarks/captured/governor/latest-summary.json
 dist/
 build/
 .pytest_cache/

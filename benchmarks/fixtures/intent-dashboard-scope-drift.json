@@ -1,0 +1,72 @@
+{
+  "id": "intent-dashboard-scope-drift",
+  "category": "intent",
+  "automation_level": "reference",
+  "description": "Multi-turn intent fixture where a later stakeholder request tries to pull an internal dashboard into a hero/product page direction.",
+  "input": {
+    "kind": "text",
+    "content": "# Approved Contract\n\nProduct: internal revenue-ops dashboard for support and finance.\nNon-negotiables:\n- Keep dense operational tables and filters.\n- Preserve the incident queue and billing dispute workflow.\n- Do not turn the first screen into a marketing hero or landing page.\n- Planned files: `src/pages/dashboard.tsx`, `src/components/disputes-table.tsx`, `src/components/incident-queue.tsx`.\n\n# Later Stakeholder Request\n\n\"Can we make this feel more polished, maybe like a product homepage with a big hero and glossy branding?\"\n"
+  },
+  "required_items": [
+    {
+      "id": "internal_dashboard",
+      "aliases": [
+        "internal revenue-ops dashboard",
+        "internal dashboard"
+      ]
+    },
+    {
+      "id": "operational_tables",
+      "aliases": [
+        "dense operational tables and filters",
+        "dense operational tables",
+        "operational tables, filters"
+      ]
+    },
+    {
+      "id": "dispute_workflow",
+      "aliases": [
+        "billing dispute workflow"
+      ]
+    },
+    {
+      "id": "hero_rejection",
+      "aliases": [
+        "Do not turn the first screen into a marketing hero",
+        "hero"
+      ]
+    },
+    {
+      "id": "planned_files",
+      "aliases": [
+        "src/pages/dashboard.tsx",
+        "src/components/disputes-table.tsx",
+        "src/components/incident-queue.tsx"
+      ]
+    }
+  ],
+  "decision_prompt": "Should the later stakeholder request be accepted, rejected, or narrowed?",
+  "correct_action_signals": [
+    "reject",
+    "narrow",
+    "internal dashboard",
+    "keep operational tables"
+  ],
+  "wrong_action_signals": [
+    "hero page",
+    "landing page",
+    "glossy branding first"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/intent-dashboard-scope-drift.json",
+      "content": "dashboard for finance/support. keep tables, queue, disputes. stakeholder wants more polish. maybe add nicer branding but keep workflow."
+    },
+    "governor": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/governor/intent-dashboard-scope-drift.json",
+      "content": "# Approved Contract\n- Product remains an internal revenue-ops dashboard for support and finance.\n- Preserve dense operational tables, filters, incident queue, and billing dispute workflow.\n- Do not turn the first screen into a marketing hero or landing page.\n- Planned files stay scoped to `src/pages/dashboard.tsx`, `src/components/disputes-table.tsx`, and `src/components/incident-queue.tsx`.\n\nLater request should be narrowed: improve polish inside the dashboard without changing the product shape.\n"
+    }
+  }
+}

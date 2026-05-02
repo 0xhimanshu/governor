@@ -11,6 +11,7 @@
 #   --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,all
 set -euo pipefail
 
+VERSION="0.2.1"
 FORCE=0
 SETUP_STATUSLINE=1
 PROJECT_DIR=""
@@ -38,6 +39,7 @@ while [ "$#" -gt 0 ]; do
     --help|-h)
       printf '%s\n' \
         "Governor installer" \
+        "Version: $VERSION" \
         "" \
         "Usage: bash install.sh [options]" \
         "" \
@@ -82,7 +84,7 @@ if [ -d "$MARKETPLACE_DIR" ] && [ "$FORCE" -ne 1 ]; then
   echo "Governor already installed at $MARKETPLACE_DIR"
   echo "Re-run with --force to overwrite the installed copy."
 else
-  echo "Installing Governor marketplace copy..."
+  echo "Installing Governor v$VERSION marketplace copy..."
   mkdir -p "$(dirname "$MARKETPLACE_DIR")"
   rm -rf "$MARKETPLACE_DIR"
   mkdir -p "$MARKETPLACE_DIR"
@@ -167,7 +169,7 @@ if [ -n "$PROJECT_DIR" ] || [ -n "$AGENTS" ]; then
 fi
 
 echo ""
-echo "Governor installed."
+echo "Governor v$VERSION installed."
 echo "Restart Claude Code, then use:"
 echo "  /governor:status"
 echo "  /governor:on"

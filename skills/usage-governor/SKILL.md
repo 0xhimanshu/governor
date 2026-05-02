@@ -88,26 +88,29 @@ protected-span validation, quality guard, and a clear savings report.
 When the user runs `/governor:compress [level] [file]`:
 
 - Default target: `CLAUDE.md`; default level: `medium`.
-- Keep the workflow internal. Do not ask the user to edit drafts, copy paths, or
-  run follow-up commands unless they request manual mode or safety fallback is
-  required.
-- For normal files, start auto mode:
+- Keep the workflow internal. Do not ask the user to edit drafts, copy paths,
+  or run follow-up commands unless they request manual mode or a safety fallback
+  is required.
+- Start auto mode:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" compress "${TARGET}" --level "${LEVEL}" --auto
 ```
 
-- Parse the JSON, rewrite `marked_content` using `prompt`, preserve every
-  `<protect>...</protect>` block exactly, write only rewritten file content to
-  `draft_path`, then run `finalize_command`.
-- If finalization says quality guard failed for `light` or `medium`, retry once
-  at the next stronger level. If retry also fails, leave the backup restored and
-  explain the smallest safe next step.
-- Report only the result: original/new token estimate, memory saved %, validation
-  and recovery status, quality-guard status, backup restore status, and backup
-  location.
+- Parse the JSON payload.
+- Rewrite `marked_content` using `prompt`, preserve every
+  `<protect>...</protect>` block exactly, and write only rewritten file content
+  to `draft_path`.
+- Run `finalize_command_json` and inspect the returned JSON result.
+- If the result has `status=quality_guard_failed` and `next_level` is present,
+  rerun `retry_auto_command` once and repeat the same internal finalize flow.
+- If retry also fails, leave the backup restored and explain the smallest safe
+  next step.
+- Report only the result: original/new token estimate, memory saved %,
+  validation and recovery status, quality-guard status, backup restore status,
+  and backup location.
 - Use manual mode only when the user explicitly asks or the file is extremely
-  large; then show draft, prompt, backup, and finalize paths.
+  large.
 
 ### Planning
 
@@ -147,3 +150,16 @@ Use precise categories:
 
 Do not claim a universal percentage. Report exact script numbers when available
 and clearly label estimates.
+
+## Tool Filtering Posture
+
+Governor v1.1 is tool-aware, not Bash-only.
+
+- The hook can observe all tools.
+- The helper decides locally whether to compact based on payload size,
+  structure, confidence, and tool risk.
+- Treat MCP and structured JSON/object payloads as structured-first inputs.
+- Preserve the clue, not the whole wall of text. If the clue might be missing,
+  suggest `/governor:full`.
+- Do not compact large source reads or file-edit outputs; those are safety
+  blocklisted because trimming code can hide the real bug.

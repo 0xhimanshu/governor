@@ -1,0 +1,71 @@
+{
+  "id": "memory-destructive-rules",
+  "category": "memory",
+  "automation_level": "reference",
+  "description": "Always-loaded rules file with destructive-operation warnings, exact tests, and product constraints.",
+  "input": {
+    "kind": "text",
+    "content": "# Deployment Guardrails\n\n- Never run destructive production commands like `rm -rf`, `DROP TABLE`, or manual billing backfills without a backup plan.\n- Preserve exact secrets and infra identifiers: `STRIPE_SECRET_KEY`, `prod-db-primary`, and `s3://app-prod-exports`.\n- If auth or billing changes, run `pnpm test auth` and `pnpm test billing` before claiming success.\n- Use the `us-east-1` failover runbook dated `2026-04-11` if the export worker degrades.\n- The product is an internal dashboard. Do not rewrite it into a marketing hero page.\n"
+  },
+  "required_items": [
+    {
+      "id": "destructive_warning",
+      "aliases": [
+        "Never run destructive production commands",
+        "DROP TABLE"
+      ]
+    },
+    {
+      "id": "exact_secret",
+      "aliases": [
+        "STRIPE_SECRET_KEY",
+        "prod-db-primary",
+        "s3://app-prod-exports"
+      ]
+    },
+    {
+      "id": "exact_tests",
+      "aliases": [
+        "pnpm test auth",
+        "pnpm test billing"
+      ]
+    },
+    {
+      "id": "failover_runbook",
+      "aliases": [
+        "us-east-1",
+        "2026-04-11"
+      ]
+    },
+    {
+      "id": "dashboard_constraint",
+      "aliases": [
+        "internal dashboard",
+        "marketing hero page"
+      ]
+    }
+  ],
+  "decision_prompt": "What constraints must remain true before editing auth, billing, or the dashboard?",
+  "correct_action_signals": [
+    "internal dashboard",
+    "pnpm test auth",
+    "backup",
+    "us-east-1"
+  ],
+  "wrong_action_signals": [
+    "marketing hero",
+    "skip billing test"
+  ],
+  "conditions": {
+    "caveman": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/caveman/memory-destructive-rules.json",
+      "content": "prod rules: no destructive ops. keep secrets exact. test auth. use failover runbook. keep dashboard not marketing."
+    },
+    "governor": {
+      "source": "inline",
+      "captured_path": "benchmarks/captured/governor/memory-destructive-rules.json",
+      "content": "# Deployment Guardrails\n- Never run destructive production commands or billing backfills without a backup plan.\n- Preserve exact identifiers: `STRIPE_SECRET_KEY`, `prod-db-primary`, `s3://app-prod-exports`.\n- If auth or billing changes, run `pnpm test auth` and `pnpm test billing` before claiming success.\n- Use the `us-east-1` failover runbook dated `2026-04-11` if the export worker degrades.\n- Keep the product as an internal dashboard; do not turn it into a marketing hero page.\n"
+    }
+  }
+}
