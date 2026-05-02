@@ -27,8 +27,8 @@ retry waste without making Claude Code feel bossy.
 Clone the repository, then run Governor directly as a local Claude Code plugin:
 
 ```bash
-gh repo clone 0xhimanshu/claude-code-governor
-cd claude-code-governor
+gh repo clone 0xhimanshu/governor
+cd governor
 claude --plugin-dir .
 ```
 

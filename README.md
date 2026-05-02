@@ -138,8 +138,8 @@ bash install.sh --force
 ### Install From This Repository
 
 ```bash
-gh repo clone 0xhimanshu/claude-code-governor
-cd claude-code-governor
+gh repo clone 0xhimanshu/governor
+cd governor
 bash install.sh --force
 ```
 
