@@ -259,6 +259,21 @@ def resolve_repo_path(path_text: str) -> Path:
     return BENCHMARKS_DIR.parent / path
 
 
+def capture_path_for_model(base_path: Path, model: str) -> Path:
+    if model == "sonnet":
+        return base_path
+    return base_path.with_name(f"{base_path.stem}.{model}{base_path.suffix}")
+
+
+def capture_candidate_paths(base_path: Path, model: str | None) -> list[Path]:
+    if not model:
+        return [base_path]
+    model_path = capture_path_for_model(base_path, model)
+    if model_path == base_path:
+        return [base_path]
+    return [model_path, base_path]
+
+
 def load_capture_text(path: Path) -> tuple[str, dict[str, Any]]:
     if path.suffix == ".json":
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -300,7 +315,7 @@ def materialize_governor_tool_hook(fixture: dict[str, Any], condition_spec: dict
     )
 
 
-def materialize_condition(fixture: dict[str, Any], condition: str) -> MaterializedCondition:
+def materialize_condition(fixture: dict[str, Any], condition: str, model: str | None = None) -> MaterializedCondition:
     if condition == "control":
         text = raw_text_for_fixture(fixture)
         return MaterializedCondition(
@@ -319,20 +334,26 @@ def materialize_condition(fixture: dict[str, Any], condition: str) -> Materializ
     if source == "inline":
         captured_path = condition_spec.get("captured_path")
         if captured_path:
-            path = resolve_repo_path(str(captured_path))
-            if path.exists():
+            base_path = resolve_repo_path(str(captured_path))
+            expected_fingerprint = fixture_capture_fingerprint(fixture)
+            for path in capture_candidate_paths(base_path, model):
+                if not path.exists():
+                    continue
                 text, metadata = load_capture_text(path)
-                expected_fingerprint = fixture_capture_fingerprint(fixture)
                 actual_fingerprint = metadata.get("fixture_fingerprint")
-                if actual_fingerprint == expected_fingerprint:
-                    return MaterializedCondition(
-                        fixture_id=fixture["id"],
-                        condition=condition,
-                        text=text,
-                        tokens=governor.estimate_tokens(text),
-                        source_mode="captured_file",
-                        details={"capture_path": str(path), **metadata},
-                    )
+                capture_model = str(metadata.get("model") or "")
+                if actual_fingerprint != expected_fingerprint:
+                    continue
+                if model and capture_model and capture_model != model:
+                    continue
+                return MaterializedCondition(
+                    fixture_id=fixture["id"],
+                    condition=condition,
+                    text=text,
+                    tokens=governor.estimate_tokens(text),
+                    source_mode="captured_file",
+                    details={"capture_path": str(path), **metadata},
+                )
         text = str(condition_spec.get("content") or "")
         return MaterializedCondition(
             fixture_id=fixture["id"],

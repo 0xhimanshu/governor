@@ -86,7 +86,7 @@ SIGNAL_KEY_RE = re.compile(
 )
 BULK_KEY_RE = re.compile(r"(stdout|stderr|output|content|body|text|items|results|entries|logs?)", re.IGNORECASE)
 NEVER_REWRITE_TOOL_RE = re.compile(
-    r"^(Read|Write|Edit|MultiEdit|NotebookEdit|TodoWrite|TaskOutput|AskUserQuestion|ExitPlanMode)$"
+    r"^(Read|Write|Edit|MultiEdit|NotebookEdit|TodoWrite|TaskOutput|AskUserQuestion|ExitPlanMode|mcp__playwright__browser_evaluate)$"
 )
 TOOL_FILTER_ALLOW_RE = re.compile(r"^(Bash|Grep|Glob|LS|Task|WebFetch|WebSearch|mcp__.*)$")
 
@@ -166,6 +166,18 @@ def token_estimate_label(tokens: int) -> str:
     return f"~{tokens} tokens (approx)"
 
 
+def compact_token_label(tokens: int) -> str:
+    sign = "-" if tokens < 0 else ""
+    value = abs(tokens)
+    if value >= 1_000_000:
+        return f"{sign}{value / 1_000_000:.1f}M"
+    if value >= 10_000:
+        return f"{sign}{value / 1000:.1f}k"
+    if value >= 1_000:
+        return f"{sign}{value / 1000:.2f}k"
+    return f"{sign}{value}"
+
+
 def slugify(text: str, default: str = "task", max_length: int = 48) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip().lower()).strip("-")
     slug = re.sub(r"-+", "-", slug)
@@ -234,6 +246,21 @@ def load_overrides() -> dict[str, Any]:
 
 def save_overrides(overrides: dict[str, Any]) -> None:
     overrides_path().write_text(json.dumps(overrides, indent=2) + "\n", encoding="utf-8")
+
+
+def record_context_overhead(source: str, text: str, **payload: Any) -> int:
+    tokens = estimate_tokens(text) if text else 0
+    if tokens <= 0:
+        return 0
+    append_ledger(
+        "context_overhead_injected",
+        {
+            **payload,
+            "source": source,
+            "tokens_estimate": tokens,
+        },
+    )
+    return tokens
 
 
 def default_governor_mode() -> str:
@@ -897,29 +924,34 @@ def duplicate_line_count(text: str) -> int:
     return duplicates
 
 
-def status() -> int:
-    lifetime_records = load_ledger()
-    records = lifetime_records[-500:]
-    if not records:
-        print("Claude Code Governor: no ledger events yet.")
-        print("Run a session with the plugin enabled, then use /governor:status again.")
-        return 0
-
+def aggregate_governor_accounting(records: list[dict[str, Any]]) -> dict[str, Any]:
     tool_blocked = 0
+    memory_saved = 0
+    overhead = 0
     prompt_suggestions = 0
     failures = 0
     compactions = 0
     by_command: dict[str, int] = {}
+    overhead_by_source: dict[str, int] = {}
     latest_statusline: dict[str, Any] | None = None
 
     for record in records:
         event = record.get("event")
         payload = record.get("payload", {})
-        if event == "tool_output_filtered":
+        if event in {"tool_output_filtered", "tool_failure_summary"}:
             blocked = int(payload.get("tokens_blocked_estimate") or 0)
             tool_blocked += blocked
             source = str(payload.get("command") or payload.get("tool_name") or "unknown").split()[0]
             by_command[source] = by_command.get(source, 0) + blocked
+        elif event == "memory_compression_finalized" and payload.get("success"):
+            original = int(payload.get("original_tokens_estimate") or 0)
+            compressed = int(payload.get("compressed_tokens_estimate") or 0)
+            memory_saved += max(0, original - compressed)
+        elif event == "context_overhead_injected":
+            source = str(payload.get("source") or "unknown")
+            tokens = int(payload.get("tokens_estimate") or 0)
+            overhead += tokens
+            overhead_by_source[source] = overhead_by_source.get(source, 0) + tokens
         elif event == "prompt_risk_suggested":
             prompt_suggestions += 1
         elif event == "tool_failure":
@@ -929,11 +961,33 @@ def status() -> int:
         elif event == "statusline_snapshot" and any(value is not None for value in payload.values()):
             latest_statusline = payload
 
-    lifetime_blocked = sum(
-        int((record.get("payload") or {}).get("tokens_blocked_estimate") or 0)
-        for record in lifetime_records
-        if record.get("event") in {"tool_output_filtered", "tool_failure_summary"}
-    )
+    direct_saved = tool_blocked + memory_saved
+    net_saved = direct_saved - overhead
+    return {
+        "tool_blocked": tool_blocked,
+        "memory_saved": memory_saved,
+        "direct_saved": direct_saved,
+        "overhead": overhead,
+        "net_saved": net_saved,
+        "prompt_suggestions": prompt_suggestions,
+        "failures": failures,
+        "compactions": compactions,
+        "by_command": by_command,
+        "overhead_by_source": overhead_by_source,
+        "latest_statusline": latest_statusline,
+    }
+
+
+def status() -> int:
+    lifetime_records = load_ledger()
+    records = lifetime_records[-500:]
+    if not records:
+        print("Claude Code Governor: no ledger events yet.")
+        print("Run a session with the plugin enabled, then use /governor:status again.")
+        return 0
+
+    session = aggregate_governor_accounting(records)
+    lifetime = aggregate_governor_accounting(lifetime_records)
     lifetime_prompt_suggestions = sum(1 for record in lifetime_records if record.get("event") == "prompt_risk_suggested")
     lifetime_compactions = sum(1 for record in lifetime_records if record.get("event") == "pre_compact")
 
@@ -941,25 +995,40 @@ def status() -> int:
     print(f"- Mode: {get_governor_mode()}")
     print(f"- Caveman detected: {'yes; compact response reinforcement paused' if caveman_active() else 'no'}")
     print(f"- Session window events: {len(records)}")
-    print(f"- Session tool-output tokens blocked: ~{tool_blocked}")
-    print(f"- Session soft prompt suggestions: {prompt_suggestions}")
-    print(f"- Session tool failures observed: {failures}")
-    print(f"- Session compactions observed: {compactions}")
-    print(f"- Estimated lifetime tokens blocked: ~{lifetime_blocked}")
+    print(f"- Session direct tool-output saved: ~{session['tool_blocked']}")
+    print(f"- Session direct memory saved: ~{session['memory_saved']}")
+    print(f"- Session estimated Governor overhead: ~{session['overhead']}")
+    print(f"- Session estimated net saved: ~{session['net_saved']}")
+    print(f"- Session soft prompt suggestions: {session['prompt_suggestions']}")
+    print(f"- Session tool failures observed: {session['failures']}")
+    print(f"- Session compactions observed: {session['compactions']}")
+    print(f"- Lifetime direct tool-output saved: ~{lifetime['tool_blocked']}")
+    print(f"- Lifetime direct memory saved: ~{lifetime['memory_saved']}")
+    print(f"- Lifetime estimated Governor overhead: ~{lifetime['overhead']}")
+    print(f"- Lifetime estimated net saved: ~{lifetime['net_saved']}")
     print(f"- Estimated lifetime prompt suggestions: {lifetime_prompt_suggestions}")
     print(f"- Estimated lifetime compactions observed: {lifetime_compactions}")
-    if latest_statusline:
+    if session["latest_statusline"]:
         print("- Latest live statusline:")
+        latest_statusline = session["latest_statusline"]
         fields = latest_statusline if "five_hour" in latest_statusline or "context" in latest_statusline else compact_statusline_fields(latest_statusline)
         for label, value in fields.items():
             if value is not None:
                 print(f"  - {label}: {value}")
-    if by_command:
+    if session["by_command"]:
         print("- Session waste heat map:")
-        for command, tokens in sorted(by_command.items(), key=lambda x: x[1], reverse=True)[:8]:
+        for command, tokens in sorted(session["by_command"].items(), key=lambda x: x[1], reverse=True)[:8]:
             print(f"  - {command}: ~{tokens} tokens blocked")
+    if session["overhead_by_source"]:
+        print("- Session Governor overhead sources:")
+        for source, tokens in sorted(session["overhead_by_source"].items(), key=lambda x: x[1], reverse=True)[:8]:
+            print(f"  - {source}: ~{tokens} tokens injected")
     print("")
-    print("Note: cached tokens can reduce billing/limits but still occupy context. Governor reports context and usage separately when statusline data is available.")
+    print(
+        "Note: direct savings are observed reductions from filtered tool output and successful memory compression. "
+        "Governor overhead is estimated from the extra context Governor injected. Net saved = direct savings - estimated overhead."
+    )
+    print("Cached tokens can reduce billing/limits but still occupy context. Governor reports context and usage separately when statusline data is available.")
     return 0
 
 
@@ -996,16 +1065,18 @@ def statusline() -> int:
     fields = compact_statusline_fields(data)
     append_ledger("statusline_snapshot", fields)
     records = load_ledger(limit=200)
-    blocked = sum(
-        int((record.get("payload") or {}).get("tokens_blocked_estimate") or 0)
-        for record in records
-        if record.get("event") == "tool_output_filtered"
-    )
+    accounting = aggregate_governor_accounting(records)
 
     pieces = ["Governor"]
     mode = get_governor_mode()
     if mode != "off":
         pieces.append(mode)
+    net_saved = int(accounting["net_saved"])
+    direct_saved = int(accounting["direct_saved"])
+    if direct_saved > 0 or net_saved != 0:
+        label = "saved" if net_saved >= 0 else "net"
+        approx = "~" if net_saved >= 0 else ""
+        pieces.append(f"{label} {approx}{compact_token_label(net_saved)}")
     if fields.get("context") is not None:
         pieces.append(f"ctx {fields['context']}")
     elif fields.get("context_tokens") is not None:
@@ -1014,8 +1085,8 @@ def statusline() -> int:
         pieces.append(f"5h {fields['five_hour']}")
     if fields.get("seven_day") is not None:
         pieces.append(f"7d {fields['seven_day']}")
-    if blocked:
-        pieces.append(f"blocked ~{blocked}t")
+    if accounting["tool_blocked"]:
+        pieces.append(f"blocked ~{compact_token_label(int(accounting['tool_blocked']))}")
     print(" | ".join(str(piece) for piece in pieces))
     return 0
 
@@ -1114,6 +1185,18 @@ def stringify_response(response: Any) -> str:
     return str(response)
 
 
+def normalize_tool_response(response: Any) -> dict[str, Any]:
+    if isinstance(response, dict):
+        return response
+    if response is None:
+        return {}
+    if isinstance(response, str):
+        return {"output": response}
+    if isinstance(response, (list, tuple)):
+        return {"output": list(response)}
+    return {"output": response}
+
+
 def tool_name_from_event(data: dict[str, Any], tool_input: dict[str, Any]) -> str:
     return str(
         data.get("tool_name")
@@ -1126,7 +1209,7 @@ def tool_name_from_event(data: dict[str, Any], tool_input: dict[str, Any]) -> st
 
 def build_tool_snapshot(data: dict[str, Any]) -> ToolSnapshot:
     tool_input = data.get("tool_input") or {}
-    response = data.get("tool_response") or {}
+    response = normalize_tool_response(data.get("tool_response"))
     tool_name = tool_name_from_event(data, tool_input)
     command = str(tool_input.get("command") or tool_input.get("cmd") or "")
     stdout = response.get("stdout")
@@ -1350,6 +1433,8 @@ def summarize_output(snapshot: ToolSnapshot) -> str:
 def hook_prompt(data: dict[str, Any]) -> int:
     prompt = str(data.get("prompt") or data.get("user_prompt") or data.get("message") or "")
     prompt_lower = prompt.strip().lower()
+    session_id = data.get("session_id")
+    cwd = data.get("cwd")
 
     if re.search(r"\b(stop|disable|deactivate|turn off)\b.*\bgovernor\b|\bnormal mode\b", prompt_lower):
         set_governor_mode("off", quiet=True)
@@ -1364,16 +1449,30 @@ def hook_prompt(data: dict[str, Any]) -> int:
     response_context = governor_response_context()
     if response_context:
         contexts.append(response_context)
+        record_context_overhead(
+            "prompt_reinforcement",
+            response_context,
+            session_id=session_id,
+            cwd=cwd,
+            mode=get_governor_mode(),
+        )
 
     if prompt and HIGH_RISK_PROMPT_RE.search(prompt):
-        append_ledger("prompt_risk_suggested", {"prompt_hash": stable_hash(prompt), "cwd": data.get("cwd"), "session_id": data.get("session_id")})
-        contexts.append(
+        append_ledger("prompt_risk_suggested", {"prompt_hash": stable_hash(prompt), "cwd": cwd, "session_id": session_id})
+        suggestion = (
             "Governor prompt-risk suggestion: this prompt can trigger broad scanning or retry loops. "
             "Offer a quick choice instead of blocking: "
             "(a) make a compact plan first, "
             "(b) narrow to likely files/tests first, or "
             "(c) proceed as-is for speed. "
             "If the user already gave enough scope, proceed normally."
+        )
+        contexts.append(suggestion)
+        record_context_overhead(
+            "prompt_risk_suggestion",
+            suggestion,
+            session_id=session_id,
+            cwd=cwd,
         )
 
     if not contexts:
@@ -1391,20 +1490,34 @@ def hook_prompt(data: dict[str, Any]) -> int:
 
 
 def hook_session_start(data: dict[str, Any]) -> int:
-    append_ledger("session_start", {"session_id": data.get("session_id"), "cwd": data.get("cwd"), "mode": get_governor_mode()})
-    sys.stdout.write(session_start_context())
+    session_id = data.get("session_id")
+    cwd = data.get("cwd")
+    mode = get_governor_mode()
+    append_ledger("session_start", {"session_id": session_id, "cwd": cwd, "mode": mode})
+    context = session_start_context()
+    if context:
+        record_context_overhead(
+            "session_start",
+            context,
+            session_id=session_id,
+            cwd=cwd,
+            mode=mode,
+        )
+    sys.stdout.write(context)
     return 0
 
 
 def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
     snapshot = build_tool_snapshot(data)
-    response = data.get("tool_response") or {}
+    response = normalize_tool_response(data.get("tool_response"))
+    session_id = data.get("session_id")
+    cwd = data.get("cwd")
     if consume_full_output_override():
         append_ledger(
             "full_output_override_used",
             {
-                "session_id": data.get("session_id"),
-                "cwd": data.get("cwd"),
+                "session_id": session_id,
+                "cwd": cwd,
                 "tool_name": snapshot.tool_name,
                 "command": snapshot.command,
                 "raw_chars": snapshot.raw_chars,
@@ -1414,8 +1527,8 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
         return 0
 
     event_payload = {
-        "session_id": data.get("session_id"),
-        "cwd": data.get("cwd"),
+        "session_id": session_id,
+        "cwd": cwd,
         "tool_name": snapshot.tool_name,
         "tool_label": snapshot.tool_label,
         "command": snapshot.command,
@@ -1435,6 +1548,11 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
             summary = summarize_output(snapshot)
             summary_tokens = estimate_tokens(summary)
             blocked = max(0, snapshot.raw_tokens_estimate - summary_tokens)
+            additional_context = (
+                f"Governor summarized failed tool output for `{snapshot.tool_name}` "
+                f"and blocked ~{blocked} tokens while preserving failure signals."
+            )
+            additional_context_tokens = estimate_tokens(additional_context)
             if blocked <= 0 and snapshot.raw_tokens_estimate < 200:
                 return 0
             append_ledger(
@@ -1444,17 +1562,24 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
                     "filter_reason": reason,
                     "summary_tokens_estimate": summary_tokens,
                     "tokens_blocked_estimate": blocked,
+                    "additional_context_tokens_estimate": additional_context_tokens,
                 },
+            )
+            record_context_overhead(
+                "tool_filter_context",
+                additional_context,
+                session_id=session_id,
+                cwd=cwd,
+                tool_name=snapshot.tool_name,
+                command=snapshot.command,
+                failed=True,
             )
             write_json(
                 {
                     "hookSpecificOutput": {
                         "hookEventName": "PostToolUseFailure",
                         "updatedToolOutput": updated_tool_output(snapshot, response, summary),
-                        "additionalContext": (
-                            f"Governor summarized failed tool output for `{snapshot.tool_name}` "
-                            f"and blocked ~{blocked} tokens while preserving failure signals."
-                        ),
+                        "additionalContext": additional_context,
                     }
                 }
             )
@@ -1468,6 +1593,11 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
     blocked = max(0, snapshot.raw_tokens_estimate - summary_tokens)
     if blocked <= 0:
         return 0
+    additional_context = (
+        f"Governor blocked ~{blocked} low-value tool-output tokens from `{snapshot.tool_name}` "
+        f"using {snapshot.payload_kind} ({snapshot.confidence} confidence, reason: {reason})."
+    )
+    additional_context_tokens = estimate_tokens(additional_context)
     append_ledger(
         "tool_output_filtered",
         {
@@ -1475,17 +1605,24 @@ def hook_post_tool(data: dict[str, Any], failed: bool = False) -> int:
             "filter_reason": reason,
             "summary_tokens_estimate": summary_tokens,
             "tokens_blocked_estimate": blocked,
+            "additional_context_tokens_estimate": additional_context_tokens,
         },
+    )
+    record_context_overhead(
+        "tool_filter_context",
+        additional_context,
+        session_id=session_id,
+        cwd=cwd,
+        tool_name=snapshot.tool_name,
+        command=snapshot.command,
+        failed=False,
     )
     write_json(
         {
             "hookSpecificOutput": {
                 "hookEventName": "PostToolUse",
                 "updatedToolOutput": updated_tool_output(snapshot, response, summary),
-                "additionalContext": (
-                    f"Governor blocked ~{blocked} low-value tool-output tokens from `{snapshot.tool_name}` "
-                    f"using {snapshot.payload_kind} ({snapshot.confidence} confidence, reason: {reason})."
-                ),
+                "additionalContext": additional_context,
             }
         }
     )

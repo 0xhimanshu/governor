@@ -12,19 +12,26 @@ from pathlib import Path
 import benchmark_lib
 
 
-def default_capture_path(fixture_id: str, condition: str) -> Path:
-    return benchmark_lib.CAPTURED_DIR / condition / f"{fixture_id}.json"
+def default_capture_path(fixture_id: str, condition: str, model: str) -> Path:
+    base = benchmark_lib.CAPTURED_DIR / condition / f"{fixture_id}.json"
+    return benchmark_lib.capture_path_for_model(base, model)
 
 
-def existing_capture_fingerprint(path: Path) -> str | None:
+def existing_capture_metadata(path: Path) -> dict[str, str]:
     if not path.exists():
-        return None
+        return {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return None
+        return {}
+    metadata: dict[str, str] = {}
     fingerprint = payload.get("fixture_fingerprint")
-    return str(fingerprint) if fingerprint else None
+    model = payload.get("model")
+    if fingerprint:
+        metadata["fixture_fingerprint"] = str(fingerprint)
+    if model:
+        metadata["model"] = str(model)
+    return metadata
 
 
 def condition_spec_for_fixture(fixture: dict[str, object], condition: str) -> dict[str, object] | None:
@@ -74,11 +81,13 @@ def main() -> int:
             rows.append({"fixture_id": fixture["id"], "status": "skipped-live", "output_path": ""})
             continue
 
-        output_path = default_capture_path(fixture["id"], args.condition)
+        output_path = default_capture_path(fixture["id"], args.condition, args.model)
         current_fingerprint = benchmark_lib.fixture_capture_fingerprint(fixture)
         if output_path.exists() and not args.force:
-            saved_fingerprint = existing_capture_fingerprint(output_path)
-            if saved_fingerprint == current_fingerprint:
+            saved_metadata = existing_capture_metadata(output_path)
+            saved_fingerprint = saved_metadata.get("fixture_fingerprint")
+            saved_model = saved_metadata.get("model")
+            if saved_fingerprint == current_fingerprint and saved_model == args.model:
                 print(f"skip {fixture['id']}: capture already up to date at {output_path}")
                 skipped += 1
                 rows.append({"fixture_id": fixture["id"], "status": "skipped", "output_path": str(output_path)})

@@ -155,7 +155,7 @@ def main() -> int:
         for condition in DEFAULT_CONDITIONS:
             if condition != "control" and condition not in (fixture.get("conditions") or {}):
                 continue
-            materialized = benchmark_lib.materialize_condition(fixture, condition)
+            materialized = benchmark_lib.materialize_condition(fixture, condition, model=args.model)
             row: dict[str, Any] = {
                 "fixture_id": fixture["id"],
                 "category": fixture.get("category"),
