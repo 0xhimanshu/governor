@@ -289,9 +289,26 @@ def set_governor_mode(mode: str, quiet: bool = False) -> int:
     return 0
 
 
+def caveman_enabled_in_settings() -> bool | None:
+    settings = Path.home() / ".claude" / "settings.json"
+    try:
+        data = json.loads(settings.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    enabled = data.get("enabledPlugins") or {}
+    if any("caveman" in str(name).lower() and bool(value) for name, value in enabled.items()):
+        return True
+    legacy_enabled = data.get("caveman@caveman")
+    return bool(legacy_enabled)
+
+
 def caveman_active() -> bool:
     if os.environ.get("GOVERNOR_IGNORE_CAVEMAN") == "1":
         return False
+
+    configured_enabled = caveman_enabled_in_settings()
+    if configured_enabled is not None:
+        return configured_enabled
 
     marker = Path.home() / ".claude" / ".caveman-active"
     try:
@@ -301,14 +318,7 @@ def caveman_active() -> bool:
                 return True
     except OSError:
         pass
-
-    settings = Path.home() / ".claude" / "settings.json"
-    try:
-        data = json.loads(settings.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return False
-    enabled = data.get("enabledPlugins") or {}
-    return any("caveman" in str(name).lower() and bool(value) for name, value in enabled.items())
+    return False
 
 
 def governor_response_context(mode: str | None = None) -> str:
