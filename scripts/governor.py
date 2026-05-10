@@ -218,19 +218,50 @@ def append_ledger(event: str, payload: dict[str, Any]) -> None:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def all_ledger_paths() -> list[Path]:
+    """Return all known ledger files, including those written by plugin hooks via CLAUDE_PLUGIN_DATA."""
+    seen: set[Path] = set()
+    paths: list[Path] = []
+
+    def _add(p: Path) -> None:
+        resolved = p.resolve()
+        if resolved not in seen and p.exists():
+            seen.add(resolved)
+            paths.append(p)
+
+    _add(ledger_path())
+
+    manual_fallback = Path.home() / ".claude" / "plugins" / PLUGIN_NAME / "ledger.jsonl"
+    _add(manual_fallback)
+
+    plugin_data_root = Path.home() / ".claude" / "plugins" / "data"
+    try:
+        if plugin_data_root.is_dir():
+            for candidate in sorted(plugin_data_root.iterdir()):
+                if not candidate.is_dir():
+                    continue
+                if not candidate.name.startswith(PLUGIN_NAME):
+                    continue
+                _add(candidate / "ledger.jsonl")
+    except OSError:
+        pass
+    return paths
+
+
 def load_ledger(limit: int | None = None) -> list[dict[str, Any]]:
-    path = ledger_path()
-    if not path.exists():
+    paths = all_ledger_paths()
+    if not paths:
         return []
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    if limit:
-        lines = lines[-limit:]
     records: list[dict[str, Any]] = []
-    for line in lines:
-        try:
-            records.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
+    for path in paths:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    records.sort(key=lambda r: r.get("ts", 0))
+    if limit:
+        records = records[-limit:]
     return records
 
 
