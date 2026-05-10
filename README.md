@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <code>Version 0.2.1</code>
+  <code>Version 0.2.2</code>
 </p>
 
 Compact professional output, context hygiene, tool-output filtering, and usage
@@ -329,11 +329,11 @@ low-savings compression result.
 
 ## Telemetry
 
-Governor stores a local JSONL ledger under:
-
-```text
-~/.claude/plugins/governor/
-```
+Governor stores a local JSONL ledger. The status command automatically discovers
+and merges ledger files from all known locations, including the plugin data
+directory set by Claude Code (`CLAUDE_PLUGIN_DATA`) and the manual fallback
+path. Deduplication uses resolved paths so symlinks and non-canonical paths
+do not cause double-counting.
 
 It tracks:
 
