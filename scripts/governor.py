@@ -968,12 +968,10 @@ def duplicate_line_count(text: str) -> int:
 def aggregate_governor_accounting(records: list[dict[str, Any]]) -> dict[str, Any]:
     tool_blocked = 0
     memory_saved = 0
-    overhead = 0
     prompt_suggestions = 0
     failures = 0
     compactions = 0
     by_command: dict[str, int] = {}
-    overhead_by_source: dict[str, int] = {}
     latest_statusline: dict[str, Any] | None = None
 
     for record in records:
@@ -988,11 +986,6 @@ def aggregate_governor_accounting(records: list[dict[str, Any]]) -> dict[str, An
             original = int(payload.get("original_tokens_estimate") or 0)
             compressed = int(payload.get("compressed_tokens_estimate") or 0)
             memory_saved += max(0, original - compressed)
-        elif event == "context_overhead_injected":
-            source = str(payload.get("source") or "unknown")
-            tokens = int(payload.get("tokens_estimate") or 0)
-            overhead += tokens
-            overhead_by_source[source] = overhead_by_source.get(source, 0) + tokens
         elif event == "prompt_risk_suggested":
             prompt_suggestions += 1
         elif event == "tool_failure":
@@ -1002,19 +995,15 @@ def aggregate_governor_accounting(records: list[dict[str, Any]]) -> dict[str, An
         elif event == "statusline_snapshot" and any(value is not None for value in payload.values()):
             latest_statusline = payload
 
-    direct_saved = tool_blocked + memory_saved
-    net_saved = direct_saved - overhead
+    tokens_saved = tool_blocked + memory_saved
     return {
         "tool_blocked": tool_blocked,
         "memory_saved": memory_saved,
-        "direct_saved": direct_saved,
-        "overhead": overhead,
-        "net_saved": net_saved,
+        "tokens_saved": tokens_saved,
         "prompt_suggestions": prompt_suggestions,
         "failures": failures,
         "compactions": compactions,
         "by_command": by_command,
-        "overhead_by_source": overhead_by_source,
         "latest_statusline": latest_statusline,
     }
 
@@ -1029,26 +1018,18 @@ def status() -> int:
 
     session = aggregate_governor_accounting(records)
     lifetime = aggregate_governor_accounting(lifetime_records)
-    lifetime_prompt_suggestions = sum(1 for record in lifetime_records if record.get("event") == "prompt_risk_suggested")
-    lifetime_compactions = sum(1 for record in lifetime_records if record.get("event") == "pre_compact")
 
     print("Claude Code Governor status")
     print(f"- Mode: {get_governor_mode()}")
     print(f"- Caveman detected: {'yes; compact response reinforcement paused' if caveman_active() else 'no'}")
-    print(f"- Session window events: {len(records)}")
-    print(f"- Session direct tool-output saved: ~{session['tool_blocked']}")
-    print(f"- Session direct memory saved: ~{session['memory_saved']}")
-    print(f"- Session estimated Governor overhead: ~{session['overhead']}")
-    print(f"- Session estimated net saved: ~{session['net_saved']}")
-    print(f"- Session soft prompt suggestions: {session['prompt_suggestions']}")
+    print(f"- Session tokens saved: ~{session['tokens_saved']}")
     print(f"- Session tool failures observed: {session['failures']}")
-    print(f"- Session compactions observed: {session['compactions']}")
-    print(f"- Lifetime direct tool-output saved: ~{lifetime['tool_blocked']}")
-    print(f"- Lifetime direct memory saved: ~{lifetime['memory_saved']}")
-    print(f"- Lifetime estimated Governor overhead: ~{lifetime['overhead']}")
-    print(f"- Lifetime estimated net saved: ~{lifetime['net_saved']}")
-    print(f"- Estimated lifetime prompt suggestions: {lifetime_prompt_suggestions}")
-    print(f"- Estimated lifetime compactions observed: {lifetime_compactions}")
+    print(f"- Session compactions: {session['compactions']}")
+    print(f"- Session prompt suggestions: {session['prompt_suggestions']}")
+    print(f"- Lifetime tokens saved: ~{lifetime['tokens_saved']}")
+    print(f"- Lifetime tool failures observed: {lifetime['failures']}")
+    print(f"- Lifetime compactions: {lifetime['compactions']}")
+    print(f"- Lifetime prompt suggestions: {lifetime['prompt_suggestions']}")
     if session["latest_statusline"]:
         print("- Latest live statusline:")
         latest_statusline = session["latest_statusline"]
@@ -1060,16 +1041,6 @@ def status() -> int:
         print("- Session waste heat map:")
         for command, tokens in sorted(session["by_command"].items(), key=lambda x: x[1], reverse=True)[:8]:
             print(f"  - {command}: ~{tokens} tokens blocked")
-    if session["overhead_by_source"]:
-        print("- Session Governor overhead sources:")
-        for source, tokens in sorted(session["overhead_by_source"].items(), key=lambda x: x[1], reverse=True)[:8]:
-            print(f"  - {source}: ~{tokens} tokens injected")
-    print("")
-    print(
-        "Note: direct savings are observed reductions from filtered tool output and successful memory compression. "
-        "Governor overhead is estimated from the extra context Governor injected. Net saved = direct savings - estimated overhead."
-    )
-    print("Cached tokens can reduce billing/limits but still occupy context. Governor reports context and usage separately when statusline data is available.")
     return 0
 
 
@@ -1112,12 +1083,9 @@ def statusline() -> int:
     mode = get_governor_mode()
     if mode != "off":
         pieces.append(mode)
-    net_saved = int(accounting["net_saved"])
-    direct_saved = int(accounting["direct_saved"])
-    if direct_saved > 0 or net_saved != 0:
-        label = "saved" if net_saved >= 0 else "net"
-        approx = "~" if net_saved >= 0 else ""
-        pieces.append(f"{label} {approx}{compact_token_label(net_saved)}")
+    tokens_saved = int(accounting["tokens_saved"])
+    if tokens_saved > 0:
+        pieces.append(f"saved ~{compact_token_label(tokens_saved)}")
     if fields.get("context") is not None:
         pieces.append(f"ctx {fields['context']}")
     elif fields.get("context_tokens") is not None:
