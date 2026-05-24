@@ -1067,8 +1067,8 @@ def compact_statusline_fields(data: dict[str, Any]) -> dict[str, Any]:
         "session_tokens": nested_get(data, "session.total_tokens", "usage.total_tokens", "tokens.total"),
         "cache_read": nested_get(data, "tokens.cache_read", "cache_read_tokens", "usage.cache_read_tokens"),
         "cache_write": nested_get(data, "tokens.cache_write", "cache_write_tokens", "usage.cache_write_tokens"),
-        "five_hour": nested_get(data, "rate_limits.five_hour.percent_used", "rate_limits.five_hour", "five_hour_usage"),
-        "seven_day": nested_get(data, "rate_limits.seven_day.percent_used", "rate_limits.seven_day", "seven_day_usage"),
+        "five_hour": nested_get(data, "rate_limits.five_hour.used_percentage", "rate_limits.five_hour.percent_used", "five_hour_usage"),
+        "seven_day": nested_get(data, "rate_limits.seven_day.used_percentage", "rate_limits.seven_day.percent_used", "seven_day_usage"),
     }
 
 
@@ -1087,13 +1087,18 @@ def statusline() -> int:
     if tokens_saved > 0:
         pieces.append(f"saved ~{compact_token_label(tokens_saved)}")
     if fields.get("context") is not None:
-        pieces.append(f"ctx {fields['context']}")
+        ctx = fields["context"]
+        if isinstance(ctx, dict):
+            total = sum(ctx.get(k, 0) or 0 for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+            pieces.append(f"ctx {compact_token_label(total)}")
+        else:
+            pieces.append(f"ctx {ctx}")
     elif fields.get("context_tokens") is not None:
         pieces.append(f"ctxTok {fields['context_tokens']}")
     if fields.get("five_hour") is not None:
-        pieces.append(f"5h {fields['five_hour']}")
+        pieces.append(f"5h {fields['five_hour']}%")
     if fields.get("seven_day") is not None:
-        pieces.append(f"7d {fields['seven_day']}")
+        pieces.append(f"7d {fields['seven_day']}%")
     if accounting["tool_blocked"]:
         pieces.append(f"blocked ~{compact_token_label(int(accounting['tool_blocked']))}")
     print(" | ".join(str(piece) for piece in pieces))
