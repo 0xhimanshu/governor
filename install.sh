@@ -11,7 +11,7 @@
 #   --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,all
 set -euo pipefail
 
-VERSION="0.2.1"
+VERSION="0.2.2"
 FORCE=0
 SETUP_STATUSLINE=1
 PROJECT_DIR=""
@@ -124,39 +124,82 @@ else
   echo "    claude plugin install governor@governor"
 fi
 
-if [ "$SETUP_STATUSLINE" -eq 1 ]; then
-  echo "Configuring statusline..."
-  mkdir -p "$CLAUDE_DIR"
-  if [ ! -f "$SETTINGS" ]; then
-    echo '{}' > "$SETTINGS"
-  fi
-  cp "$SETTINGS" "$SETTINGS.bak"
-  GOVERNOR_SETTINGS="$SETTINGS" GOVERNOR_ROOT="$MARKETPLACE_DIR" python3 - <<'PY'
+echo "Configuring Claude Code settings..."
+mkdir -p "$CLAUDE_DIR"
+if [ ! -f "$SETTINGS" ]; then
+  echo '{}' > "$SETTINGS"
+fi
+cp "$SETTINGS" "$SETTINGS.bak"
+GOVERNOR_SETTINGS="$SETTINGS" GOVERNOR_ROOT="$MARKETPLACE_DIR" SETUP_STATUSLINE="$SETUP_STATUSLINE" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
 
 settings_path = Path(os.environ["GOVERNOR_SETTINGS"])
 root = Path(os.environ["GOVERNOR_ROOT"])
+setup_statusline = os.environ.get("SETUP_STATUSLINE", "1") == "1"
 try:
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
 except Exception:
     settings = {}
 
-command = f'"{root / "bin" / "governor-statusline"}"'
-existing = settings.get("statusLine")
-if not existing:
-    settings["statusLine"] = {"type": "command", "command": command}
-    print("  Statusline configured.")
-elif isinstance(existing, dict) and command in str(existing.get("command", "")):
-    print("  Statusline already configured.")
-else:
-    print("  Existing statusline detected; Governor did not overwrite it.")
-    print(f"  Add this to your custom statusline if wanted: {command}")
+enabled = settings.get("enabledPlugins")
+if not isinstance(enabled, dict):
+    enabled = {}
+settings["enabledPlugins"] = enabled
+enabled["governor@governor"] = True
+print("  Governor enabled in settings.")
+
+marketplaces = settings.get("extraKnownMarketplaces")
+if not isinstance(marketplaces, dict):
+    marketplaces = {}
+settings["extraKnownMarketplaces"] = marketplaces
+marketplaces["governor"] = {
+    "source": {
+        "source": "directory",
+        "path": str(root),
+    }
+}
+print("  Governor marketplace registered in settings.")
+
+if setup_statusline:
+    command = f'"{root / "bin" / "governor-statusline"}"'
+    existing = settings.get("statusLine")
+    if not existing:
+        settings["statusLine"] = {"type": "command", "command": command}
+        print("  Statusline configured.")
+    elif isinstance(existing, dict) and command in str(existing.get("command", "")):
+        print("  Statusline already configured.")
+    else:
+        print("  Existing statusline detected; Governor did not overwrite it.")
+        print(f"  Add this to your custom statusline if wanted: {command}")
 
 settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
 PY
-fi
+
+echo "Configuring Governor mode..."
+GOVERNOR_DATA_DIR="$CLAUDE_DIR/plugins/governor"
+mkdir -p "$GOVERNOR_DATA_DIR"
+GOVERNOR_OVERRIDES="$GOVERNOR_DATA_DIR/overrides.json" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ["GOVERNOR_OVERRIDES"])
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    data = {}
+
+if not isinstance(data, dict):
+    data = {}
+
+if not data.get("mode"):
+    data["mode"] = "compact"
+
+path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+print("  Governor default mode: compact")
+PY
 
 if [ -n "$PROJECT_DIR" ] || [ -n "$AGENTS" ]; then
   if [ -z "$PROJECT_DIR" ]; then
@@ -170,7 +213,9 @@ fi
 
 echo ""
 echo "Governor v$VERSION installed."
-echo "Restart Claude Code, then use:"
+echo "Governor is enabled for new Claude sessions immediately."
+echo "Already-open Claude sessions may still need a restart because plugin hooks load at session start."
+echo "Then use:"
 echo "  /governor:status"
 echo "  /governor:on"
 echo "  /governor:compress CLAUDE.md"

@@ -248,6 +248,26 @@ def all_ledger_paths() -> list[Path]:
     return paths
 
 
+def persist_session_env(session_id: str | None, cwd: str | None) -> None:
+    env_file = os.environ.get("CLAUDE_ENV_FILE")
+    if not env_file:
+        return
+
+    exports: list[str] = []
+    if session_id:
+        exports.append(f"export CLAUDE_GOVERNOR_SESSION_ID={shlex.quote(str(session_id))}")
+    if cwd:
+        exports.append(f"export CLAUDE_GOVERNOR_SESSION_CWD={shlex.quote(str(cwd))}")
+    if not exports:
+        return
+
+    try:
+        with Path(env_file).open("a", encoding="utf-8") as handle:
+            handle.write("\n".join(exports) + "\n")
+    except OSError:
+        return
+
+
 def load_ledger(limit: int | None = None) -> list[dict[str, Any]]:
     paths = all_ledger_paths()
     if not paths:
@@ -1008,9 +1028,56 @@ def aggregate_governor_accounting(records: list[dict[str, Any]]) -> dict[str, An
     }
 
 
+def current_session_records(
+    records: list[dict[str, Any]],
+    current_cwd: str | None = None,
+    current_session_id: str | None = None,
+) -> tuple[list[dict[str, Any]], str]:
+    if not records:
+        return [], "empty"
+
+    cwd = current_cwd or os.getcwd()
+
+    session_id = current_session_id
+    if not session_id:
+        for record in reversed(records):
+            if record.get("cwd") != cwd:
+                continue
+            session_id = record.get("session_id")
+            if session_id:
+                break
+    if session_id:
+        return [record for record in records if record.get("session_id") == session_id], "session_id"
+
+    start_ts = None
+    for record in reversed(records):
+        if record.get("cwd") == cwd and record.get("event") == "session_start":
+            start_ts = record.get("ts")
+            break
+    if start_ts is not None:
+        scoped = [
+            record
+            for record in records
+            if record.get("cwd") == cwd and float(record.get("ts") or 0) >= float(start_ts)
+        ]
+        if scoped:
+            return scoped, "cwd_since_session_start"
+
+    cwd_records = [record for record in records if record.get("cwd") == cwd]
+    if cwd_records:
+        return cwd_records[-500:], "cwd_recent"
+
+    return records[-500:], "global_recent"
+
+
 def status() -> int:
     lifetime_records = load_ledger()
-    records = lifetime_records[-500:]
+    current_session_id = os.environ.get("CLAUDE_GOVERNOR_SESSION_ID")
+    records, session_scope = current_session_records(
+        lifetime_records,
+        current_cwd=os.getcwd(),
+        current_session_id=current_session_id,
+    )
     if not records:
         print("Claude Code Governor: no ledger events yet.")
         print("Run a session with the plugin enabled, then use /governor:status again.")
@@ -1022,6 +1089,7 @@ def status() -> int:
     print("Claude Code Governor status")
     print(f"- Mode: {get_governor_mode()}")
     print(f"- Caveman detected: {'yes; compact response reinforcement paused' if caveman_active() else 'no'}")
+    print(f"- Session events: {len(records)}")
     print(f"- Session tokens saved: ~{session['tokens_saved']}")
     print(f"- Session tool failures observed: {session['failures']}")
     print(f"- Session compactions: {session['compactions']}")
@@ -1041,6 +1109,10 @@ def status() -> int:
         print("- Session waste heat map:")
         for command, tokens in sorted(session["by_command"].items(), key=lambda x: x[1], reverse=True)[:8]:
             print(f"  - {command}: ~{tokens} tokens blocked")
+    print("")
+    if session_scope != "session_id":
+        print(f"Note: current-session scope inferred via `{session_scope}` because a live Claude session id was not available in this command context.")
+    print("Cached tokens can reduce billing/limits but still occupy context. Governor reports context and usage separately when statusline data is available.")
     return 0
 
 
@@ -1075,9 +1147,12 @@ def compact_statusline_fields(data: dict[str, Any]) -> dict[str, Any]:
 def statusline() -> int:
     data = read_stdin_json()
     fields = compact_statusline_fields(data)
-    append_ledger("statusline_snapshot", fields)
-    records = load_ledger(limit=200)
-    accounting = aggregate_governor_accounting(records)
+    session_id = nested_get(data, "session.id", "session_id", "sessionId") or os.environ.get("CLAUDE_GOVERNOR_SESSION_ID")
+    cwd = str(data.get("cwd") or os.getcwd())
+    append_ledger("statusline_snapshot", {**fields, "session_id": session_id, "cwd": cwd})
+    records = load_ledger()
+    session_records, _ = current_session_records(records, current_cwd=cwd, current_session_id=str(session_id) if session_id else None)
+    accounting = aggregate_governor_accounting(session_records)
 
     pieces = ["Governor"]
     mode = get_governor_mode()
@@ -1507,6 +1582,7 @@ def hook_session_start(data: dict[str, Any]) -> int:
     session_id = data.get("session_id")
     cwd = data.get("cwd")
     mode = get_governor_mode()
+    persist_session_env(str(session_id) if session_id else None, str(cwd) if cwd else None)
     append_ledger("session_start", {"session_id": session_id, "cwd": cwd, "mode": mode})
     context = session_start_context()
     if context:

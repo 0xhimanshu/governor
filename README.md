@@ -5,19 +5,33 @@
 <h1 align="center">Governor for Claude Code</h1>
 
 <p align="center">
-  <strong>Keep Claude Code concise, clean, and under control.</strong>
+  <strong>Keep long Claude Code sessions sharp under quota pressure.</strong>
 </p>
 
 <p align="center">
-  <code>Version 0.2.2</code>
+  Reduce noisy tool output, recurring context bloat, and drift without throwing away the clue.
 </p>
 
-Compact professional output, context hygiene, tool-output filtering, and usage
-telemetry for Claude Code Max users.
+<p align="center">
+  <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-plugin-6D4AFF" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-black" />
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-0F766E" />
+</p>
 
-Governor is the serious alternative to style-only token savers. It keeps the
-agent concise, shrinks recurring memory files, blocks noisy logs from flooding
-context, and adds planning guardrails for broad tasks.
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#why-governor">Why Governor</a> ·
+  <a href="#benchmarks">Benchmarks</a> ·
+  <a href="#commands">Commands</a> ·
+  <a href="#install">Install</a>
+</p>
+
+Governor is a Claude Code plugin for context hygiene, tool-output filtering,
+memory compression, telemetry, and drift guardrails.
+
+It is built for the harder problem than "make the model talk less":
+
+> keep long Claude Code sessions efficient without making the model dumber.
 
 The installed Claude Code command namespace is still `/governor:*`.
 
@@ -39,131 +53,51 @@ Governor auto-starts in compact professional mode when the plugin is loaded.
 Use `/governor:off` to disable response compression and `/governor:on` to
 re-enable it.
 
-## V2 Highlights
+## Why Governor
 
-- **VCLR benchmark harness:** fixture-based benchmarks now score valid-context
-  loss, decision preservation, and wrong-decision rate, not only token counts.
-- **Structured tool filtering:** Governor preserves high-signal clues from noisy
-  MCP-style payloads such as Burp history and Playwright network dumps.
-- **No-compress safety boundaries:** risky source reads and code-heavy tool
-  outputs stay intact instead of being compacted into something misleading.
-- **Capture-ready Caveman comparisons:** the benchmark suite can now replay real
-  captured Caveman comparator outputs when Claude CLI auth is available, while
-  falling back cleanly to reference text when it is not.
-- **Replayable Governor reference cases:** the last reference-style Governor
-  benchmark rows can now be refreshed into captured replay files instead of
-  staying hand-written forever.
+Long Claude Code sessions usually do not fail because Claude writes one extra
+paragraph.
 
-## Why It Exists
+They fail because context gets polluted:
 
-Heavy Claude Code users do not only burn quota on long answers. The bigger
-session killers are often:
+- verbose test, build, and MCP output floods the transcript
+- bloated recurring files like `CLAUDE.md`, notes, and rules tax every session
+- broad prompts trigger repo-wide scans and retries
+- scope drift compounds over time
 
-- bloated always-loaded context such as `CLAUDE.md`, notes, and rules
-- huge Bash/test/build output copied into conversation context
-- vague prompts that trigger broad scans and repeated failed attempts
-- scope drift during long coding tasks
-- compactions caused by preventable context growth
+Governor is designed for that failure mode.
 
-Governor attacks those system problems while keeping the interaction
-professional and readable.
+## What It Does
 
-## Early Results
+| Capability | What it does | Why it matters |
+|---|---|---|
+| Tool-output filtering | Compacts noisy Bash, search, web, task, and MCP-style output when confidence is high | Keeps logs from dominating context |
+| Memory compression | Rewrites bloated recurring prompt files into denser, safer forms | Lowers recurring prompt tax |
+| Compact mode | Keeps Claude Code responses concise and professional | Reduces avoidable output bloat |
+| Telemetry | Reports measured savings, failures, compactions, and waste heat | Lets you see whether Governor is helping |
+| Drift guardrails | Adds planning and scope checks for broad tasks | Helps long sessions stay on track |
 
-These are directional pilot results, not universal claims.
+## Why It Feels Different
 
-Same machine, fresh Claude CLI Sonnet sessions, same multi-turn task, same
-starting repo snapshot. This pilot measured an implementation contract, a real
-implementation turn, a later conflicting stakeholder request, and a final drift
-check.
+Most token-saving tools optimize one layer:
 
-| Condition | Output Tokens | Cost | Turns | Intent Preserved | Obvious Regression Found |
-|---|---:|---:|---:|---|---|
-| Control | 10,997 | $0.5169 | 21 | Yes | No |
-| Governor | 10,113 | $0.4933 | 22 | Yes | No |
-| Delta | -8.0% | -4.6% | +4.8% | Tie | Tie |
+- shorter replies
+- shorter command output
 
-What this means:
+Governor is built for the broader session problem:
 
-- Governor reduced output tokens and total cost in this pilot.
-- Governor preserved the original implementation contract and rejected later
-  scope drift.
-- This was not a speed win; Governor took one extra turn.
-- This is early evidence, not a broad claim across all Claude Code tasks.
+- tool spam
+- recurring context tax
+- MCP-heavy workflows
+- long-task drift
+- wasted retries
 
-Notes:
+That is why Governor's benchmark story starts with valid-context loss and
+decision preservation, not only token counts.
 
-- `n=1` pilot run
-- Claude CLI Sonnet
-- Multi-turn static dashboard task
-- Browser-level smoke testing and larger multi-task comparisons are still in
-  progress
-- Repo-visible pilot artifacts: `benchmarks/pilot-intent-results.md` and
-  `benchmarks/pilot-intent-run.csv`
+## Benchmarks
 
-Governor should not be judged by token savings alone. Throwing context away is
-easy. The harder problem is reducing avoidable quota burn while preserving
-correctness, intent, and useful model behavior over longer sessions.
-
-## Micro Benchmarks
-
-Small local smoke benchmarks. Useful for understanding where savings come from,
-but not substitutes for real task runs. These are kept as narrow regression
-checks; the V2 fixture suite is the main benchmark surface.
-
-### Output Tokens
-
-Three technical explanation prompts, Sonnet, no tools.
-
-| Condition | Output Tokens | Avg / Prompt | Saved vs Control |
-|---|---:|---:|---:|
-| Control | 2967 | 989 | 0.0% |
-| Caveman | 1634 | 545 | 44.9% |
-| Governor | 1320 | 440 | 55.5% |
-
-### Memory Compression
-
-One `project-notes.md` sample from the Caveman compression fixtures.
-
-| Method | Tokens | Saved |
-|---|---:|---:|
-| Original | 1877 | 0.0% |
-| Caveman fixture | 924 | 50.8% |
-| Governor medium | 838 | 55.4% |
-
-### Tool Output Filtering
-
-Synthetic noisy `pytest -vv` output with preserved failure lines.
-
-| Raw Output | Filtered Output | Blocked |
-|---:|---:|---:|
-| 54314 estimated tokens | 1726 estimated tokens | 96.8% |
-
-### Tool Filter Signal Benchmarks (v1.1 micro suite)
-
-Structured/local cases focused on the criticism that compaction can miss the
-real clue.
-
-| Case | Filtered? | Blocked | Signal Preserved |
-|---|---:|---:|---:|
-| Noisy pytest failure buried in long log | Yes | 64.0% | Yes |
-| Burp-style MCP payload with large history + one critical finding | Yes | 90.9% | Yes |
-| Large `Read` output containing source code | No | 0.0% | Yes |
-
-Repo-visible local artifacts:
-- `benchmarks/tool-filter-v1-1-results.md`
-- `benchmarks/tool-filter-v1-1-results.json`
-
-### V2 Fixture Suite (Local)
-
-Governor now also has a VCLR-oriented local benchmark harness under
-`benchmarks/fixtures/` with 8 starter cases across:
-
-- noisy logs
-- structured MCP payloads
-- memory/rules files
-- multi-turn intent retention
-- safety no-compress cases
+### V2 Sonnet Fixture Run
 
 Recent measured Sonnet run with Claude decision grading:
 
@@ -178,53 +112,82 @@ What this means:
 - Governor preserved more valid context in this run.
 - Governor won on decision quality in the latest Sonnet pass.
 
-Important caveat:
+Artifacts:
 
-- Governor tool cases are generated live.
-- Caveman cases are captured replay files.
-- Governor memory and intent reference cases can also be refreshed into captured
-  replay files.
-- Optional Claude CLI decision grading still depends on local CLI auth.
-- Refresh the exact numbers after any fixture update or capture refresh.
-
-Repo-visible V2 artifacts:
 - `benchmarks/v2-fixture-results.md`
 - `benchmarks/v2-fixture-results.json`
 - `benchmarks/sonnet-v2-report.md`
-- `benchmarks/fixtures/README.md`
-- `benchmarks/captured/README.md`
 
-For a cleaner narrative summary, see `benchmarks/sonnet-v2-report.md`.
+### Early Multi-Turn Pilot
 
-Reproduce locally:
+Same machine, fresh Claude CLI Sonnet sessions, same multi-turn task, same
+starting repo snapshot.
 
-```bash
-python3 scripts/run_benchmark.py \
-  --write-json benchmarks/v2-fixture-results.json \
-  --write-md benchmarks/v2-fixture-results.md
-```
+| Condition | Output Tokens | Cost | Turns | Intent Preserved | Obvious Regression Found |
+|---|---:|---:|---:|---|---|
+| Control | 10,997 | $0.5169 | 21 | Yes | No |
+| Governor | 10,113 | $0.4933 | 22 | Yes | No |
+| Delta | -8.0% | -4.6% | +4.8% | Tie | Tie |
 
-Refresh Caveman captures first when Claude CLI auth is available:
+This was a narrow pilot, not a universal claim. It matters because Governor
+kept the implementation contract intact while shaving cost on a real multi-turn
+coding task.
 
-```bash
-python3 scripts/capture_fixture_conditions.py \
-  --condition caveman \
-  --model sonnet \
-  --write-summary benchmarks/captured/caveman/latest-summary.json
-```
+### Tool Filter Signal Checks
 
-Refresh reference-style Governor captures too:
+Structured/local cases focused on the criticism that compaction can miss the
+real clue.
 
-```bash
-python3 scripts/capture_fixture_conditions.py \
-  --condition governor \
-  --model sonnet \
-  --write-summary benchmarks/captured/governor/latest-summary.json
-```
+| Case | Filtered? | Blocked | Signal Preserved |
+|---|---:|---:|---:|
+| Noisy pytest failure buried in long log | Yes | 64.0% | Yes |
+| Burp-style MCP payload with large history + one critical finding | Yes | 90.9% | Yes |
+| Large `Read` output containing source code | No | 0.0% | Yes |
 
-Interpretation: Caveman is excellent at pure style compression. Governor aims
-for broader quota control: compact output, recurring-context compression,
-noisy-tool filtering, telemetry, and retry reduction.
+## Compared To
+
+### RTK
+
+RTK is excellent at shrinking shell output.
+
+Governor is aimed at the wider Claude Code session:
+
+- tool-output filtering
+- recurring prompt-file hygiene
+- MCP and structured payload handling
+- drift-sensitive long sessions
+- measured savings and waste heat inside Claude Code
+
+### Caveman
+
+Caveman is excellent when the main goal is making Claude talk in fewer tokens.
+
+Governor is built for the broader session problem:
+
+- less tool spam
+- less recurring context tax
+- less drift
+- more decision preservation under pressure
+
+Short version:
+
+> RTK compresses commands. Caveman compresses style. Governor protects the session.
+
+## Best Fit
+
+Governor is best for:
+
+- Claude Code Max users who hit long-session limits
+- MCP-heavy workflows
+- Burp / Playwright / structured tool output
+- prompt-heavy repos with large rules or command docs
+- teams who care about drift, reproducibility, and auditability
+
+Governor is less useful for:
+
+- tiny chats
+- already-clean prompt files
+- users who only want meme-simple answer shortening
 
 ## Features
 
@@ -239,8 +202,8 @@ noisy-tool filtering, telemetry, and retry reduction.
 - **Tool-output filtering:** large Bash, search, web, task, and MCP-style
   outputs are compacted when confidence is high; risky source reads are left
   alone.
-- **Telemetry ledger:** `/governor:status` reports blocked tokens, failures,
-  compactions, and statusline snapshots when available.
+- **Telemetry ledger:** `/governor:status` reports blocked tokens,
+  failures, compactions, and statusline snapshots when available.
 - **Prompt guidance:** vague broad prompts get soft, non-blocking suggestions.
 - **Plan and drift guard:** explicit contracts for broad builds, then scope
   checks with `/governor:guard`.
@@ -320,7 +283,7 @@ Compression levels:
 
 | Level | Target |
 |---|---|
-| `light` | Remove filler/repetition; preserve most rationale |
+| `light` | Remove filler and repetition; preserve most rationale |
 | `medium` | Collapse narrative into decision bullets |
 | `aggressive` | Keep only rules, facts, commands, risks, and decisions |
 
@@ -345,9 +308,9 @@ It tracks:
 - statusline snapshots
 - memory compression savings
 
-Prompt caching can reduce usage/cost but does not necessarily reduce context
-window occupancy. Governor reports those separately when Claude Code exposes
-the data.
+Prompt caching can reduce usage and cost but does not necessarily reduce
+context window occupancy. Governor reports those separately when Claude Code
+exposes the data.
 
 ## Benchmarking
 
@@ -361,15 +324,42 @@ Recommended conditions:
 - `governor-compressed`: Governor after `/governor:compress CLAUDE.md`
 - `governor-strict`: optional strict-mode run for broad tasks
 
-Fill `benchmarks/run-sheet.csv`, then run:
+Primary metrics:
+
+- valid-context loss rate
+- decision preservation
+- wrong-decision rate
+- five-hour usage delta
+- assistant output tokens
+- tool-output tokens blocked
+- wall time
+- task success
+
+Run:
 
 ```bash
-python3 scripts/compare_benchmarks.py benchmarks/run-sheet.csv
+python3 scripts/run_benchmark.py \
+  --write-json benchmarks/v2-fixture-results.json \
+  --write-md benchmarks/v2-fixture-results.md
 ```
 
-Primary metrics: five-hour usage delta, peak context %, assistant output
-tokens, tool-output tokens blocked, failed tool calls, compactions, wall time,
-and task success.
+Refresh Caveman captures first when Claude CLI auth is available:
+
+```bash
+python3 scripts/capture_fixture_conditions.py \
+  --condition caveman \
+  --model sonnet \
+  --write-summary benchmarks/captured/caveman/latest-summary.json
+```
+
+Refresh reference-style Governor captures too:
+
+```bash
+python3 scripts/capture_fixture_conditions.py \
+  --condition governor \
+  --model sonnet \
+  --write-summary benchmarks/captured/governor/latest-summary.json
+```
 
 ## Design Principles
 
@@ -386,7 +376,8 @@ and task success.
 - Existing custom statuslines are not overwritten by the installer.
 - Compression sends file content through the active Claude Code/model workflow.
   Do not compress secrets or sensitive private files.
-- Use `/governor:full` before a diagnostic command when you need unfiltered logs.
+- Use `/governor:full` before a diagnostic command when you need unfiltered
+  logs.
 - For installed-but-inactive behavior, launch Claude Code with
   `GOVERNOR_DEFAULT_MODE=off`.
 
