@@ -11,7 +11,7 @@
 #   --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,all
 set -euo pipefail
 
-VERSION="0.2.2"
+VERSION="0.2.3"
 FORCE=0
 SETUP_STATUSLINE=1
 PROJECT_DIR=""

@@ -14,7 +14,7 @@
 
 <p align="center">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-plugin-6D4AFF" />
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-black" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.3-black" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-0F766E" />
 </p>
 
@@ -199,11 +199,16 @@ Governor is less useful for:
   env vars, versions, headings, tables, and warnings are preserved.
 - **Quality guard:** low-savings compression is rejected and the backup is
   restored instead of pretending success.
-- **Tool-output filtering:** large Bash, search, web, task, and MCP-style
-  outputs are compacted when confidence is high; risky source reads are left
-  alone.
-- **Telemetry ledger:** `/governor:status` reports blocked tokens,
-  failures, compactions, and statusline snapshots when available.
+- **Content-aware tool filtering:** large outputs are only compacted when
+  content is repetitive noise (>40% duplicate lines). Unique data — API
+  responses, Burp proxy history, curl output, structured JSON — passes through
+  unfiltered. Noisy test failures, repetitive logs, and build spam still get
+  compacted.
+- **Inline full-output bypass:** set `GOVERNOR_FULL=1` as an env var in the
+  same Bash call to skip compaction without a separate command. Immune to
+  parallel-call cancellation.
+- **Telemetry ledger:** `/governor:status` reports blocked tokens, failures,
+  compactions, and statusline snapshots when available.
 - **Prompt guidance:** vague broad prompts get soft, non-blocking suggestions.
 - **Plan and drift guard:** explicit contracts for broad builds, then scope
   checks with `/governor:guard`.
@@ -376,8 +381,8 @@ python3 scripts/capture_fixture_conditions.py \
 - Existing custom statuslines are not overwritten by the installer.
 - Compression sends file content through the active Claude Code/model workflow.
   Do not compress secrets or sensitive private files.
-- Use `/governor:full` before a diagnostic command when you need unfiltered
-  logs.
+- Use `/governor:full` before a diagnostic command when you need unfiltered logs,
+  or prefix with `GOVERNOR_FULL=1` to bypass inline.
 - For installed-but-inactive behavior, launch Claude Code with
   `GOVERNOR_DEFAULT_MODE=off`.
 

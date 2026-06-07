@@ -432,6 +432,10 @@ def set_full_output(count: int = 1) -> int:
 
 
 def consume_full_output_override() -> bool:
+    # Also honor GOVERNOR_FULL env var so callers can inline it
+    # in the same Bash call instead of a separate (cancellable) command.
+    if os.environ.get("GOVERNOR_FULL", "").strip() not in ("", "0", "false", "no"):
+        return True
     overrides = load_overrides()
     remaining = int(overrides.get("full_output_remaining") or 0)
     if remaining <= 0:
@@ -1376,6 +1380,26 @@ def exit_is_failure(exit_code: Any) -> bool:
     return str(exit_code).lower() not in {"0", "success", "true", "none"}
 
 
+def _is_noisy_content(text: str) -> bool:
+    """Check if content is repetitive noise vs unique data.
+
+    Returns True if >40% of lines are duplicates (test output, logs).
+    Returns False for unique content (API responses, code, structured data).
+    """
+    if not text:
+        return False
+    lines = text.split("\n")
+    if len(lines) < 20:
+        return False
+    # Sample up to 500 lines for performance
+    sample = lines[:500] if len(lines) > 500 else lines
+    unique = set(line.strip() for line in sample if line.strip())
+    if not unique:
+        return True
+    repetition_ratio = 1.0 - (len(unique) / len([l for l in sample if l.strip()]))
+    return repetition_ratio > 0.40
+
+
 def should_filter_snapshot(snapshot: ToolSnapshot, failed: bool = False) -> tuple[bool, str]:
     if NEVER_REWRITE_TOOL_RE.match(snapshot.tool_name):
         return False, "tool-blocklist"
@@ -1390,17 +1414,33 @@ def should_filter_snapshot(snapshot: ToolSnapshot, failed: bool = False) -> tupl
     tool_failure = exit_is_failure(snapshot.exit_code)
     medium_heavy = snapshot.raw_chars >= TOOL_FILTER_THRESHOLD // 2
 
+    # Content-aware gate: if output is mostly unique lines, don't compact
+    # (it's likely an API response, code, or data the model actively needs).
+    # Only apply noise check for non-failure, non-noisy-command cases.
+    combined_text = (snapshot.stdout or "") + (snapshot.stderr or "")
+
     if failed and (raw_heavy or structured_heavy):
         return True, "failure-summary"
     if very_heavy:
+        # Even very large output should pass through if content is unique
+        if not _is_noisy_content(combined_text):
+            return False, "very-large-but-unique"
         return True, "very-large"
     if snapshot.tool_name.startswith("mcp__") and (raw_heavy or (structured_heavy and medium_heavy)):
+        if not _is_noisy_content(combined_text):
+            return False, "mcp-unique-content"
         return True, "mcp-structured"
     if structured_heavy and raw_heavy:
+        if not _is_noisy_content(combined_text):
+            return False, "structured-unique"
         return True, "structured-heavy"
     if allowlisted_tool and raw_heavy:
+        if not _is_noisy_content(combined_text):
+            return False, "allowlisted-unique"
         return True, "allowlisted-large"
     if noisy_command and (raw_heavy or (tool_failure and medium_heavy)):
+        if not tool_failure and not _is_noisy_content(combined_text):
+            return False, "noisy-cmd-but-unique"
         return True, "noisy-command"
     return False, "below-threshold"
 
