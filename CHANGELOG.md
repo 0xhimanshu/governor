@@ -4,6 +4,11 @@
 
 ### Added
 
+- **Multi-agent skill support**: Governor rules files now include full
+  tool-output self-filtering and context hygiene instructions for Cursor,
+  Windsurf, Cline, Codex CLI, and Gemini CLI. Each agent learns to
+  self-filter noisy output, preserve unique data, and maintain context
+  hygiene — no hooks or MCP required.
 - **Content-aware filtering**: tool output is now checked for repetition before
   compacting. Unique content (API responses, Burp proxy history, curl output,
   structured JSON) passes through unfiltered. Only repetitive noise (>40%

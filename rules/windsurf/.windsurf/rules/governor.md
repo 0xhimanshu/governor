@@ -1,11 +1,19 @@
-# Governor Compact Mode
+# Governor for Windsurf
 
-Always apply compact professional output.
-
+## Response Mode
 - Answer first; no pleasantries, filler, or request restatement.
-- Target 90-160 words for normal technical explanations unless depth is requested.
-- Use 3-6 dense bullets, short paragraphs, or compact tables.
-- Debugging shape: cause -> fix -> verify.
-- Preserve exact code, commands, paths, API names, versions, warnings, and safety constraints.
-- For broad prompts, scope before scanning or editing widely.
-- Never use caveman, pirate, leet, emoji-compression, or novelty dialect.
+- Target 90-160 words unless depth requested.
+- 3-6 dense bullets, short paragraphs, or compact tables.
+- Debugging: cause → fix → verify. No novelty dialect.
+
+## Tool Output Self-Filtering
+When you receive tool output (terminal, shell, test runners, build tools):
+
+1. **Repetition check.** If >40% of lines are duplicates (repeated test failures, log lines, build warnings), compress: keep first unique error with file:line, occurrence count, exit code, and summary. Drop duplicates.
+2. **Unique content.** If lines are mostly unique (API responses, JSON, code, curl), keep intact. Do NOT summarize unique data.
+3. **Threshold.** Only filter output exceeding ~4000 tokens.
+4. **Always keep:** error messages, file paths, line numbers, first stack trace, exit codes, test names, assertion details.
+
+## Context Hygiene
+- Scope before scanning or editing widely.
+- Read only relevant file sections. Don't re-read files already in context.

@@ -252,24 +252,28 @@ cd governor
 bash install.sh --force
 ```
 
-### Install Rule Files For Other Agents
+### Install Governor Skills For Other Agents
 
 ```bash
 bash install.sh --project /path/to/project --agents all
 ```
 
-Supported rule snippets:
+Governor works as a **prompt-based skill** for any AI coding agent. Each agent
+gets a rules file that teaches it to self-filter noisy tool output, preserve
+unique data, and maintain context hygiene — no hooks or MCP required.
 
-| Agent | Rule File |
-|---|---|
-| Codex | `AGENTS.md` |
-| Gemini CLI | `GEMINI.md` |
-| Cursor | `.cursor/rules/governor.mdc` |
-| Windsurf | `.windsurf/rules/governor.md` |
-| Cline | `.clinerules/governor.md` |
+| Agent | Rule File | What It Does |
+|---|---|---|
+| Claude Code | Plugin hooks | Full: auto-filtering, telemetry, compression, drift guard |
+| Codex CLI | `AGENTS.md` | Self-filtering, compact mode, context hygiene |
+| Gemini CLI | `GEMINI.md` | Self-filtering, compact mode, context hygiene |
+| Cursor | `.cursor/rules/governor.mdc` | Self-filtering, compact mode, context hygiene |
+| Windsurf | `.windsurf/rules/governor.md` | Self-filtering, compact mode, context hygiene |
+| Cline | `.clinerules/governor.md` | Self-filtering, compact mode, context hygiene |
 
-Other agents get compact professional behavior only. Claude Code is the V1
-target for hooks, telemetry, statusline, and Bash output filtering.
+Claude Code gets the deepest integration (hooks, telemetry, statusline,
+`/governor:*` commands). Other agents get the core behavior — tool-output
+self-filtering with content-aware noise detection — via prompt engineering.
 
 ## How Compression Works
 
