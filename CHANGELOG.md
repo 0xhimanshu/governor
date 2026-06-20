@@ -43,7 +43,8 @@
 - Structured tool filtering for MCP-style payloads.
 - No-compress safety boundaries for risky source reads.
 - Captured Caveman comparator replays.
-- Multi-agent rule snippets (Codex, Gemini, Cursor, Windsurf, Cline).
+- Compact-mode-only rule snippets for other agents (upgraded to full
+  self-filtering skills in 0.2.3).
 
 ## 0.1.0
 

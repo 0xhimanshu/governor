@@ -2,7 +2,7 @@
 
 Thanks for helping make Governor sharper. This project is small on purpose:
 every change should help users save context, avoid noisy tool output, or reduce
-retry waste without making Claude Code feel bossy.
+retry waste — in Claude Code or any supported AI coding agent.
 
 ## What Good Contributions Look Like
 
@@ -38,7 +38,7 @@ For local install testing:
 bash install.sh --force
 ```
 
-For other-agent rule snippets:
+For multi-agent skill testing:
 
 ```bash
 bash install.sh --project /path/to/project --agents all
@@ -76,6 +76,15 @@ For hook changes, confirm:
 - `/governor:full` allows the next Bash command to return full output
 - tool summaries keep the first relevant failure, file/line hints, and useful
   tail lines
+
+For agent rule file changes (Cursor, Windsurf, Cline, Codex CLI, Gemini CLI):
+
+- the self-filtering protocol matches Governor's: >40% duplicate lines =
+  compress, unique content = pass through, threshold ~4000 tokens
+- test with the target agent before submitting when possible
+- keep the rule file concise — it loads into the agent's context every session
+- preserve the "always keep" signal list (errors, paths, line numbers, stack
+  traces, exit codes, test names)
 
 ## Benchmark Contributions
 

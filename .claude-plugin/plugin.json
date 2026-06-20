@@ -1,6 +1,6 @@
 {
   "name": "governor",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Governor: always-on compact professional output, telemetry, context slimming, tool-output filtering, prompt guidance, and drift guardrails for Claude Code Max users.",
   "author": {
     "name": "hs"
