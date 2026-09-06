@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.2.5 (2026-09-06)
+
+### Changed
+
+- **Commands reduced from 11 to 5.** Governor now leans on automation instead of
+  manual invocation:
+  - `/governor:mode [on|off|full]` replaces `/governor:on`, `/governor:off`,
+    `/governor:full`, and `/governor:strict`. With no argument it reports the
+    current mode.
+  - `/governor:plan` absorbs `/governor:guard`. It checks for a saved contract
+    first, writes one when none exists, and reports drift when one does.
+  - `/governor:benchmark` and `/governor:install-rules` are no longer slash
+    commands. Use `python3 scripts/run_benchmark.py` and
+    `python3 scripts/install_rules.py --project . --agents all --force`.
+- Compaction notices now suggest `GOVERNOR_FULL=1` first, since the env var is
+  immune to parallel-call cancellation.
+
+### Fixed
+
+- **Implementation contracts are now scoped to the project that created them.**
+  `guard` previously picked the newest contract in a global directory, so a
+  contract saved in one repository produced fabricated scope-drift reports in
+  every other repository. Contracts are stamped with their project path on save
+  and only matched back to that project.
+- `guard --check` reports contract existence without attempting to parse its
+  argument as a file path.
+
+### Added
+
+- Comparison table covering Ponytail, Caveman, and RTK, plus a star-history
+  chart in the README.
+
+### Compatibility
+
+- `/governor:on`, `/governor:off`, and `/governor:full` still work when typed
+  into an upgraded session: the prompt hook honours them even though the command
+  files are gone. `/governor:full` matters most here — a silent no-op would have
+  compacted the very output the user asked to see in full.
+- `/governor:guard`, `/governor:benchmark`, `/governor:install-rules`, and
+  `/governor:strict` have no fallback. Use `/governor:plan`, the two scripts
+  above, and `/governor:mode` respectively.
+- Contracts saved before 0.2.5 carry no project stamp and are no longer
+  auto-selected. Pass the JSON path to `guard` explicitly to use one, or write a
+  fresh contract with `/governor:plan`.
+
 ## 0.2.4 (2026-09-06)
 
 ### Added

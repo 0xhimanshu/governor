@@ -55,8 +55,8 @@ wording, not to engineering diligence.
 
 - Helpful by default, strict only when explicitly requested.
 - In Claude Code, Governor compact mode is active every chat when the plugin
-  SessionStart hook runs. `/governor:on` re-enables it; `/governor:off` disables
-  response compression.
+  SessionStart hook runs. `/governor:mode on` re-enables it; `/governor:mode off`
+  disables response compression. Plain language ("turn off governor") works too.
 - If Caveman is active, do not stack output-compression styles. Let Caveman
   handle brevity; keep Governor focused on telemetry, memory compression,
   tool-output filtering, prompt guidance, and drift guardrails.
@@ -112,9 +112,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" compress "${TARGET}" --level
 - Use manual mode only when the user explicitly asks or the file is extremely
   large.
 
-### Planning
+### Planning and Drift Guard
 
-Use `/governor:plan` or explicit user intent for large builds, games, sites,
+`/governor:plan` handles both phases. It runs the guard first: with no saved
+contract it creates one, and with a contract already saved it reports drift.
+
+Use it, or explicit user intent, for large builds, games, sites,
 architecture changes, broad refactors, repeated failing tests, or vague one-line
 app requests.
 
@@ -132,10 +135,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" save-contract --title "SHORT
 Pass the JSON on stdin. Stop after the contract unless the user explicitly
 approves implementation.
 
-### Drift Guard
-
-Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" guard`. Use the output
-to flag unplanned changes, missing planned files, tests to run, and the smallest
+For the drift phase, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" guard` and use the output to
+flag unplanned changes, missing planned files, tests to run, and the smallest
 safe fix path.
 
 ## Token Savings Language
@@ -160,6 +162,6 @@ Governor v1.1 is tool-aware, not Bash-only.
   structure, confidence, and tool risk.
 - Treat MCP and structured JSON/object payloads as structured-first inputs.
 - Preserve the clue, not the whole wall of text. If the clue might be missing,
-  suggest `/governor:full`.
+  suggest rerunning with `GOVERNOR_FULL=1` (or `/governor:mode full`).
 - Do not compact large source reads or file-edit outputs; those are safety
   blocklisted because trimming code can hide the real bug.

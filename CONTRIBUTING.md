@@ -71,9 +71,11 @@ For compression changes, test at least one small markdown file and confirm:
 For hook changes, confirm:
 
 - hooks fail quietly when input JSON is missing or incomplete
-- `/governor:off` disables compact response guidance
-- `/governor:on` re-enables it
-- `/governor:full` allows the next Bash command to return full output
+- `/governor:mode off` disables compact response guidance
+- `/governor:mode on` re-enables it
+- plain language ("turn off governor") still switches modes
+- `/governor:mode full` and `GOVERNOR_FULL=1` both allow the next Bash command
+  to return full output
 - tool summaries keep the first relevant failure, file/line hints, and useful
   tail lines
 

@@ -1,12 +1,30 @@
 ---
-description: Create a compact implementation contract before broad app/site/game/refactor work.
+description: Create an implementation contract before broad work, or check current changes against the saved contract.
 disable-model-invocation: false
 ---
 
 # Governor Plan
 
-Create an implementation contract for `$ARGUMENTS`. This command is explicit
-opt-in governance: do not implement yet.
+This command has two phases and picks the right one automatically.
+
+First, check whether this project already has a contract. Run this exactly as
+written; do not append `$ARGUMENTS`, which is a task description, not a path:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" guard --check
+```
+
+- Output starts with `NO_CONTRACT` → run the **Contract phase** below.
+- Output starts with `CONTRACT_FOUND` and `$ARGUMENTS` is empty → run the
+  **Drift phase** below.
+- Output starts with `CONTRACT_FOUND` but `$ARGUMENTS` describes a task that
+  clearly differs from the named contract → treat it as new work and run the
+  **Contract phase**.
+
+## Contract phase
+
+Create an implementation contract for `$ARGUMENTS`. This is explicit opt-in
+governance: do not implement yet.
 
 Use bounded research when facts are current or market/design/API dependent. Keep
 research compact and cite sources when browsing.
@@ -47,4 +65,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" save-contract --title "SHORT
 Pass the JSON on stdin. The helper generates a safe lowercase slug.
 
 Tell the user implementation should begin only after they approve the contract.
-Do not make `/governor:plan` a hidden prerequisite for small focused fixes.
+Do not make this command a hidden prerequisite for small focused fixes.
+
+## Drift phase
+
+Run the full guard:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/governor.py" guard
+```
+
+Use its output to report:
+
+- possible scope drift
+- planned files not changed yet
+- acceptance tests still needed
+- smallest safe next step
+
+Keep the guidance concise and action-oriented.

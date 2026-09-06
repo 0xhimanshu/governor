@@ -422,12 +422,15 @@ def session_start_context() -> str:
     )
 
 
-def set_full_output(count: int = 1) -> int:
+def set_full_output(count: int = 1, quiet: bool = False) -> int:
     count = max(1, count)
     overrides = load_overrides()
     overrides["full_output_remaining"] = count
     save_overrides(overrides)
-    print(f"Governor full-output override enabled for next {count} tool call(s).")
+    # Hook callers must stay quiet: the hook writes JSON on stdout and any
+    # stray line here would corrupt it.
+    if not quiet:
+        print(f"Governor full-output override enabled for next {count} tool call(s).")
     return 0
 
 
@@ -969,7 +972,7 @@ def audit(paths: list[Path]) -> int:
     print("2. Move detailed runbooks/examples into on-demand skills or linked reference files.")
     print("3. Compress verbose preference prose at light/medium level before trying aggressive mode.")
     print("4. Keep warnings, commands, paths, API names, versions, and design tokens exact.")
-    print("5. Use /governor:plan before broad app/game/site builds, then /governor:guard after edits.")
+    print("5. Use /governor:plan before broad app/game/site builds, then again after edits to check drift.")
     return 0
 
 
@@ -1524,7 +1527,7 @@ def summarize_output(snapshot: ToolSnapshot) -> str:
         f"Payload type: {snapshot.payload_kind} ({snapshot.confidence} confidence)",
         f"Raw size: {token_estimate_label(snapshot.raw_tokens_estimate)}",
         f"Failure/error lines detected: {total_failure_lines}",
-        "If the clue is missing, run `/governor:full` before repeating the step.",
+        "If the clue is missing, rerun the step with `GOVERNOR_FULL=1` (or use `/governor:mode full`).",
         "Full raw output remains available in the terminal/transcript.",
         "",
     ]
@@ -1565,7 +1568,20 @@ def hook_prompt(data: dict[str, Any]) -> int:
     session_id = data.get("session_id")
     cwd = data.get("cwd")
 
-    if re.search(r"\b(stop|disable|deactivate|turn off)\b.*\bgovernor\b|\bnormal mode\b", prompt_lower):
+    # /governor:mode [on|off|full] is the current command. The pre-0.2.5
+    # /governor:on, /governor:off and /governor:full forms are still honoured
+    # here so an upgrading session does not silently lose the setting -- most
+    # importantly /governor:full, where a silent no-op would compact the very
+    # output the user asked to see in full.
+    mode_command = re.match(r"/governor:mode\s+(\w+)", prompt_lower)
+    requested = mode_command.group(1) if mode_command else None
+    if requested in ("off", "normal"):
+        set_governor_mode("off", quiet=True)
+    elif requested in ("on", "compact"):
+        set_governor_mode("compact", quiet=True)
+    elif requested == "full" or prompt_lower.startswith("/governor:full"):
+        set_full_output(1, quiet=True)
+    elif re.search(r"\b(stop|disable|deactivate|turn off)\b.*\bgovernor\b|\bnormal mode\b", prompt_lower):
         set_governor_mode("off", quiet=True)
     elif re.search(r"\b(activate|enable|turn on|start)\b.*\bgovernor\b", prompt_lower):
         set_governor_mode("compact", quiet=True)
@@ -1770,9 +1786,10 @@ def stable_hash(text: str) -> str:
 
 def guard(contract_path: Path | None = None) -> int:
     if contract_path is None:
-        candidates = sorted(contracts_dir().glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        candidates = project_contracts()
         if not candidates:
-            print("No implementation contract found. Run /governor:plan first or pass a contract JSON path.")
+            print("No implementation contract found for this project.")
+            print("Write one with /governor:plan \"task\", or pass a contract JSON path.")
             return 1
         contract_path = candidates[0]
 
@@ -1852,9 +1869,50 @@ def save_contract(path: Path, payload: str) -> int:
     except json.JSONDecodeError as exc:
         print(f"Contract must be JSON. Parse error: {exc}")
         return 2
+    if isinstance(contract, dict):
+        # Stamp the project so guard never compares this contract against a
+        # different repository's working tree.
+        contract.setdefault("_governor_project", str(Path.cwd().resolve()))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Saved contract: {path}")
+    return 0
+
+
+def project_contracts() -> list[Path]:
+    """Contracts saved from the current project, newest first.
+
+    Contracts without a `_governor_project` stamp are ignored: they predate
+    project scoping and cannot be attributed to a repository safely.
+    """
+    here = str(Path.cwd().resolve())
+    matches = []
+    for candidate in contracts_dir().glob("*.json"):
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(data, dict) and data.get("_governor_project") == here:
+            try:
+                matches.append((candidate.stat().st_mtime, candidate))
+            except OSError:
+                continue
+    return [path for _, path in sorted(matches, key=lambda item: item[0], reverse=True)]
+
+
+def guard_check() -> int:
+    """Report whether this project has a saved contract. Used by /governor:plan."""
+    candidates = project_contracts()
+    if not candidates:
+        print("NO_CONTRACT: this project has no saved implementation contract.")
+        return 0
+    title = ""
+    try:
+        data = json.loads(candidates[0].read_text(encoding="utf-8"))
+        title = str(data.get("title") or "")
+    except Exception:
+        pass
+    print(f"CONTRACT_FOUND: {title or candidates[0].stem} ({candidates[0]})")
     return 0
 
 
@@ -1909,6 +1967,11 @@ def main(argv: list[str]) -> int:
 
     guard_parser = sub.add_parser("guard")
     guard_parser.add_argument("contract", nargs="?", type=Path)
+    guard_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="report only whether this project has a saved contract",
+    )
 
     save_parser = sub.add_parser("save-contract")
     save_parser.add_argument("path", nargs="?", type=Path)
@@ -1965,6 +2028,8 @@ def main(argv: list[str]) -> int:
         if args.event == "compact":
             return hook_compact(data)
     if args.command == "guard":
+        if args.check:
+            return guard_check()
         return guard(args.contract)
     if args.command == "save-contract":
         if args.path:

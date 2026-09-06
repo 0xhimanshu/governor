@@ -21,7 +21,7 @@
   <img alt="Gemini CLI" src="https://img.shields.io/badge/Gemini%20CLI-skill-4285F4" />
   <img alt="Hermes" src="https://img.shields.io/badge/Hermes-skill-E44D26" />
   <img alt="DeepSeek" src="https://img.shields.io/badge/DeepSeek-skill-536DFE" />
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.4-black" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.5-black" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-0F766E" />
 </p>
 
@@ -53,7 +53,8 @@ The Claude Code command namespace is `/governor:*`.
 bash install.sh --force
 ```
 
-Restart Claude Code, then run:
+Restart Claude Code. Filtering, compact mode, and telemetry are already running —
+there is nothing to turn on. When you want to look under the hood:
 
 ```text
 /governor:status
@@ -189,6 +190,29 @@ real clue.
 
 ## Compared To
 
+Governor sits in a different layer from the other token-savers, so it stacks
+with them rather than replacing them.
+
+| Tool | Shrinks | Overlap with Governor |
+|---|---|---|
+| [Ponytail](https://github.com/DietrichGebert/ponytail) | The code the agent writes | None |
+| [Caveman](https://github.com/JuliusBrussee/caveman) | The prose the agent speaks | None |
+| RTK | The shell output you pipe through it | Partial |
+| **Governor** | **The context the session consumes** | — |
+
+### Ponytail
+
+Ponytail is a YAGNI enforcer: before writing code it walks a ladder — does this
+need to exist, is it already in the codebase, does the stdlib or platform do it —
+and stops at the first rung that holds. Their
+[published benchmark](https://github.com/DietrichGebert/ponytail/blob/main/benchmarks/results/2026-06-18-agentic.md)
+reports ~54% less code written against a no-skill baseline. Those are their
+numbers on their fixtures, not something Governor has independently reproduced.
+
+Ponytail does not read tool output. Governor does not touch code generation. Run
+both: Ponytail keeps the agent from over-building, Governor keeps the test logs
+and MCP payloads from that build out of your context window.
+
 ### RTK
 
 RTK is excellent at shrinking shell output.
@@ -214,7 +238,8 @@ Governor is built for the broader session problem:
 
 Short version:
 
-> RTK compresses commands. Caveman compresses style. Governor protects the session.
+> Ponytail shrinks what gets built. Caveman shrinks what gets said. RTK shrinks
+> what a command prints. Governor protects the session that holds all three.
 
 ## Best Fit
 
@@ -253,24 +278,43 @@ Governor is less useful for:
   compactions, and statusline snapshots when available. (Claude Code)
 - **Prompt guidance:** vague broad prompts get soft, non-blocking suggestions.
 - **Plan and drift guard:** explicit contracts for broad builds, then scope
-  checks with `/governor:guard`. (Claude Code)
+  checks by running `/governor:plan` again. (Claude Code)
 
 ## Commands
 
-Claude Code plugin commands:
+Governor is designed to work without commands. Everything below is optional.
+
+### Automatic — no command needed
+
+| Behavior | When it runs |
+|---|---|
+| Tool-output filtering | Every tool call, once output is noisy and large |
+| Compact response mode | Every session, from the moment the plugin loads |
+| Telemetry + statusline | Continuously in the background |
+| Prompt-risk suggestions | When a prompt would trigger a broad scan or retry loop |
+| Mode switching by plain language | "turn off governor" / "enable governor" |
+| Full output for one command | Prefix it: `GOVERNOR_FULL=1 pytest -vv` |
+
+### The five commands
 
 | Command | Purpose |
 |---|---|
-| `/governor:on` | Enable compact professional response mode |
-| `/governor:off` | Disable response compression |
-| `/governor:status` | Show usage dashboard and waste heat map |
-| `/governor:audit` | Find bloated memory/rule files and context waste |
-| `/governor:compress CLAUDE.md` | Compress memory files with protected-span validation |
-| `/governor:full` | Let the next diagnostic command return full output |
-| `/governor:plan "task"` | Produce an implementation contract before broad work |
-| `/governor:guard` | Check current changes against the approved plan |
-| `/governor:benchmark` | Run or explain the V2 benchmark suite |
-| `/governor:install-rules` | Copy Governor skills into other-agent projects |
+| `/governor:status` | Usage dashboard, waste heat map, current mode |
+| `/governor:mode [on\|off\|full\|strict]` | Control Governor; no argument reports current mode |
+| `/governor:audit [paths]` | Find bloated memory/rule files and context waste |
+| `/governor:compress [level] [file]` | Compress memory files with protected-span validation |
+| `/governor:plan "task"` | Write an implementation contract; run again later to check drift |
+
+`/governor:plan` picks its phase automatically: no saved contract for this
+project means it writes one, an existing contract means it reports drift against
+it. Contracts are scoped to the project that created them.
+
+Two things that used to be slash commands are now plain scripts:
+
+```bash
+python3 scripts/run_benchmark.py                                    # was /governor:benchmark
+python3 scripts/install_rules.py --project . --agents all --force   # was /governor:install-rules
+```
 
 ## Install
 
@@ -364,6 +408,9 @@ python3 scripts/run_benchmark.py \
   --write-md benchmarks/v2-fixture-results.md
 ```
 
+Refreshing the captured Caveman and Governor comparator replays is documented in
+[benchmarks/README.md](benchmarks/README.md).
+
 ## Design Principles
 
 - Helpful by default, strict only when invoked.
@@ -379,8 +426,8 @@ python3 scripts/run_benchmark.py \
 - Existing custom statuslines are not overwritten by the installer.
 - Compression sends file content through the active Claude Code/model workflow.
   Do not compress secrets or sensitive private files.
-- Use `/governor:full` before a diagnostic command when you need unfiltered logs,
-  or prefix with `GOVERNOR_FULL=1` to bypass inline.
+- When you need unfiltered logs, prefix the command with `GOVERNOR_FULL=1`, or
+  run `/governor:mode full` before the diagnostic step.
 - For installed-but-inactive behavior, launch Claude Code with
   `GOVERNOR_DEFAULT_MODE=off`.
 
@@ -390,6 +437,16 @@ Contributions are welcome when they make Governor more useful, safer, or easier
 to trust. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull
 request, especially for compression, hook, telemetry, agent rules, or benchmark
 changes.
+
+## Star History
+
+<a href="https://star-history.com/#0xhimanshu/governor&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=0xhimanshu/governor&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=0xhimanshu/governor&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=0xhimanshu/governor&type=Date" />
+  </picture>
+</a>
 
 ## License
 

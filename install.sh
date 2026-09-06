@@ -11,7 +11,7 @@
 #   --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,hermes,deepseek,all
 set -euo pipefail
 
-VERSION="0.2.4"
+VERSION="0.2.5"
 FORCE=0
 SETUP_STATUSLINE=1
 PROJECT_DIR=""
@@ -208,14 +208,20 @@ if [ -n "$PROJECT_DIR" ] || [ -n "$AGENTS" ]; then
   if [ -z "$AGENTS" ]; then
     AGENTS="all"
   fi
-  python3 "$MARKETPLACE_DIR/scripts/install_rules.py" --project "$PROJECT_DIR" --agents "$AGENTS"
+  RULE_ARGS=(--project "$PROJECT_DIR" --agents "$AGENTS")
+  # --force means "overwrite" everywhere, including already-present rule files.
+  if [ "$FORCE" -eq 1 ]; then
+    RULE_ARGS+=(--force)
+  fi
+  python3 "$MARKETPLACE_DIR/scripts/install_rules.py" "${RULE_ARGS[@]}"
 fi
 
 echo ""
 echo "Governor v$VERSION installed."
 echo "Governor is enabled for new Claude sessions immediately."
 echo "Already-open Claude sessions may still need a restart because plugin hooks load at session start."
-echo "Then use:"
+echo "Filtering and compact mode run automatically; no command needed."
+echo "Optional:"
 echo "  /governor:status"
-echo "  /governor:on"
+echo "  /governor:audit"
 echo "  /governor:compress CLAUDE.md"
