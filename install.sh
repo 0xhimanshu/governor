@@ -8,10 +8,10 @@
 #   --force              overwrite existing installed copy
 #   --no-statusline      do not configure Claude Code statusline
 #   --project PATH       copy multi-agent rule snippets into a project
-#   --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,all
+#   --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,hermes,deepseek,all
 set -euo pipefail
 
-VERSION="0.2.3"
+VERSION="0.2.4"
 FORCE=0
 SETUP_STATUSLINE=1
 PROJECT_DIR=""
@@ -47,7 +47,7 @@ while [ "$#" -gt 0 ]; do
         "  --force              overwrite existing installed copy" \
         "  --no-statusline      do not configure Claude Code statusline" \
         "  --project PATH       copy multi-agent rule snippets into a project" \
-        "  --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,all" \
+        "  --agents LIST        comma list: codex,gemini,cursor,windsurf,cline,hermes,deepseek,all" \
         "  --all-agents         shorthand for --agents all" \
         "  --help               show this help"
       exit 0

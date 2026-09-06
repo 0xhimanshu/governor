@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.4 (2026-09-06)
+
+### Added
+
+- **Hermes support**: Governor rules file for Nous Research's Hermes agent
+  via `.hermes.md` — the agent's native rules format.
+- **DeepSeek Harness support**: Governor rules file for DeepSeek's `dsh` CLI
+  via `.dsh/rules/governor.md` — file-scoped rules with glob activation.
+- Governor now supports 8 AI coding agents total.
+
 ## 0.2.3 (2026-05-24)
 
 ### Added

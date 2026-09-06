@@ -14,6 +14,8 @@ RULE_MAP = {
     "cursor": ("rules/cursor/.cursor/rules/governor.mdc", ".cursor/rules/governor.mdc"),
     "windsurf": ("rules/windsurf/.windsurf/rules/governor.md", ".windsurf/rules/governor.md"),
     "cline": ("rules/cline/.clinerules/governor.md", ".clinerules/governor.md"),
+    "hermes": ("rules/hermes/.hermes.md", ".hermes.md"),
+    "deepseek": ("rules/deepseek/.dsh/rules/governor.md", ".dsh/rules/governor.md"),
 }
 
 
@@ -51,7 +53,7 @@ def install_rules(project: Path, agents: list[str], force: bool = False) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install Governor rule snippets into a project")
     parser.add_argument("--project", type=Path, default=Path.cwd())
-    parser.add_argument("--agents", default="all", help="comma list: codex,gemini,cursor,windsurf,cline,all")
+    parser.add_argument("--agents", default="all", help="comma list: codex,gemini,cursor,windsurf,cline,hermes,deepseek,all")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 

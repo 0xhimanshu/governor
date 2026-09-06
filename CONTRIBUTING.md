@@ -77,7 +77,7 @@ For hook changes, confirm:
 - tool summaries keep the first relevant failure, file/line hints, and useful
   tail lines
 
-For agent rule file changes (Cursor, Windsurf, Cline, Codex CLI, Gemini CLI):
+For agent rule file changes (Cursor, Windsurf, Cline, Codex CLI, Gemini CLI, Hermes, DeepSeek):
 
 - the self-filtering protocol matches Governor's: >40% duplicate lines =
   compress, unique content = pass through, threshold ~4000 tokens

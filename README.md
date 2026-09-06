@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Now also works with Cursor · Windsurf · Cline · Codex CLI · Gemini CLI
+  Now also works with Cursor · Windsurf · Cline · Codex CLI · Gemini CLI · Hermes · DeepSeek
 </p>
 
 <p align="center">
@@ -19,7 +19,9 @@
   <img alt="Cline" src="https://img.shields.io/badge/Cline-skill-F59E0B" />
   <img alt="Codex CLI" src="https://img.shields.io/badge/Codex%20CLI-skill-10A37F" />
   <img alt="Gemini CLI" src="https://img.shields.io/badge/Gemini%20CLI-skill-4285F4" />
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.3-black" />
+  <img alt="Hermes" src="https://img.shields.io/badge/Hermes-skill-E44D26" />
+  <img alt="DeepSeek" src="https://img.shields.io/badge/DeepSeek-skill-536DFE" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.4-black" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-0F766E" />
 </p>
 
@@ -35,7 +37,7 @@
 Governor started as a Claude Code plugin for context hygiene, tool-output
 filtering, memory compression, telemetry, and drift guardrails.
 
-**As of v0.2.3, Governor's core behavior — content-aware tool-output filtering
+**As of v0.2.4, Governor's core behavior — content-aware tool-output filtering
 and context hygiene — works with any AI coding agent** via prompt-based skills.
 No hooks or MCP required.
 
@@ -81,6 +83,8 @@ Governor works at two levels:
 | **Cline** | `.clinerules/governor.md` | Self-filtering, compact mode, context hygiene |
 | **Codex CLI** | `AGENTS.md` | Self-filtering, compact mode, context hygiene |
 | **Gemini CLI** | `GEMINI.md` | Self-filtering, compact mode, context hygiene |
+| **Hermes** 🆕 | `.hermes.md` | Self-filtering, compact mode, context hygiene |
+| **DeepSeek** 🆕 | `.dsh/rules/governor.md` | Self-filtering, compact mode, context hygiene |
 
 **How it works for non-Claude agents:** Governor's rules file teaches the agent
 to apply content-aware filtering itself. When tool output has >40% duplicate
@@ -109,9 +113,9 @@ Governor is designed for that failure mode — in Claude Code and beyond.
 
 | Capability | What it does | Where it works |
 |---|---|---|
-| Tool-output filtering | Compacts noisy output when content is repetitive; preserves unique data | All agents |
-| Compact mode | Keeps responses concise and professional | All agents |
-| Context hygiene | Avoids re-reads, broad scans, and context waste | All agents |
+| Tool-output filtering | Compacts noisy output when content is repetitive; preserves unique data | All 8 agents |
+| Compact mode | Keeps responses concise and professional | All 8 agents |
+| Context hygiene | Avoids re-reads, broad scans, and context waste | All 8 agents |
 | Memory compression | Rewrites bloated prompt files into denser, safer forms | Claude Code |
 | Telemetry | Reports measured savings, failures, compactions, and waste heat | Claude Code |
 | Drift guardrails | Adds planning and scope checks for broad tasks | Claude Code |
@@ -217,7 +221,7 @@ Short version:
 Governor is best for:
 
 - Claude Code Max users who hit long-session limits
-- Cursor / Windsurf / Cline users who want context hygiene without switching tools
+- Cursor / Windsurf / Cline / Hermes / DeepSeek users who want context hygiene without switching tools
 - MCP-heavy workflows (Burp, Playwright, structured tool output)
 - prompt-heavy repos with large rules or command docs
 - teams using multiple AI agents on the same codebase
@@ -289,6 +293,7 @@ Or install for specific agents:
 ```bash
 bash install.sh --project . --agents cursor,windsurf
 bash install.sh --project . --agents cline,codex,gemini
+bash install.sh --project . --agents hermes,deepseek
 ```
 
 ### Local Development
